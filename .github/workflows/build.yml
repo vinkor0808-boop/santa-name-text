@@ -7,7 +7,561 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Projekt erzeugen
+        run: |
+          mkdir -p work && cd work
+          mkdir -p "$(dirname build.gradle)"
+          cat > build.gradle <<'SANTA_EOF'
+          plugins {
+              id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+          }
+
+          version = project.mod_version
+          group = project.maven_group
+
+          base {
+              archivesName = project.archives_base_name
+          }
+
+          repositories {
+              mavenCentral()
+          }
+
+          dependencies {
+              minecraft "com.mojang:minecraft:${project.minecraft_version}"
+              mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+              modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+              modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+          }
+
+          tasks.withType(JavaCompile).configureEach {
+              it.options.release = 21
+          }
+
+          java {
+              withSourcesJar()
+              sourceCompatibility = JavaVersion.VERSION_21
+              targetCompatibility = JavaVersion.VERSION_21
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname gradle.properties)"
+          cat > gradle.properties <<'SANTA_EOF'
+          org.gradle.jvmargs=-Xmx2G
+          org.gradle.parallel=true
+
+          # Fabric (Werte fuer 1.21.11, bei Bedarf auf https://fabricmc.net/develop pruefen)
+          minecraft_version=1.21.11
+          yarn_mappings=1.21.11+build.4
+          loader_version=0.18.4
+          loom_version=1.14-SNAPSHOT
+          fabric_version=0.141.1+1.21.11
+
+          # Mod
+          mod_version=1.0.0
+          maven_group=de.santa
+          archives_base_name=santanametext
+          SANTA_EOF
+          mkdir -p "$(dirname settings.gradle)"
+          cat > settings.gradle <<'SANTA_EOF'
+          pluginManagement {
+              repositories {
+                  maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          rootProject.name = 'santanametext'
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/Effect.java)"
+          cat > src/main/java/de/santa/santanametext/Effect.java <<'SANTA_EOF'
+          package de.santa.santanametext;
+
+          public enum Effect {
+              SOLID("Einfarbig"), RAINBOW("Regenbogen"), GRADIENT("Verlauf"), METALLIC("Metallic"),
+              FIRE("Feuer"), PULSE("Pulsieren"), GLITTER("Glitzer");
+
+              public final String label;
+              Effect(String label) { this.label = label; }
+              public Effect next() { return values()[(ordinal() + 1) % values().length]; }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/NameBuilder.java)"
+          cat > src/main/java/de/santa/santanametext/NameBuilder.java <<'SANTA_EOF'
+          package de.santa.santanametext;
+
+          import net.minecraft.client.render.entity.state.EntityRenderState;
+          import net.minecraft.text.MutableText;
+          import net.minecraft.text.Style;
+          import net.minecraft.text.StyleSpriteSource;
+          import net.minecraft.text.Text;
+          import net.minecraft.util.Identifier;
+          import net.minecraft.util.Util;
+          import net.minecraft.util.math.MathHelper;
+
+          public final class NameBuilder {
+              private NameBuilder() {}
+
+              /** Render-State des eigenen Spielers (wird vom Mixin gesetzt). */
+              public static EntityRenderState localState;
+
+              private static final StyleSpriteSource LOGO_FONT =
+                      new StyleSpriteSource.Font(Identifier.of("santanametext", "logos"));
+
+              public static double bounce() {
+                  return SantaConfig.get().bounce ? Math.abs(Math.sin(Util.getMeasuringTimeMs() / 260.0)) * 0.12 : 0;
+              }
+
+              /** Logos + Prefix + Name */
+              public static Text main(String playerName) {
+                  SantaConfig c = SantaConfig.get();
+                  MutableText out = Text.empty();
+                  for (int idx : c.logos) {
+                      if (idx < 0 || idx > 7) continue;
+                      out.append(Text.literal(String.valueOf((char) (0xE000 + idx)))
+                              .setStyle(Style.EMPTY.withFont(LOGO_FONT).withColor(0xFFFFFF)));
+                      out.append(Text.literal(" "));
+                  }
+                  if (!c.prefix.isBlank()) {
+                      out.append(styled(c.prefix, c.prefixEffect, c));
+                      out.append(Text.literal(" "));
+                  }
+                  out.append(styled(playerName, c.nameEffect, c));
+                  return out;
+              }
+
+              public static Text line(String s, Effect e) { return styled(s, e, SantaConfig.get()); }
+
+              public static Text styled(String s, Effect e, SantaConfig c) {
+                  MutableText out = Text.empty();
+                  long t = Util.getMeasuringTimeMs();
+                  int i = 0;
+                  for (int cp : s.codePoints().toArray()) {
+                      Style st = Style.EMPTY.withColor(color(e, i, t, c)).withBold(c.bold).withItalic(c.italic);
+                      out.append(Text.literal(new String(Character.toChars(cp))).setStyle(st));
+                      i++;
+                  }
+                  return out;
+              }
+
+              private static int color(Effect e, int i, long t, SantaConfig c) {
+                  switch (e) {
+                      case RAINBOW: {
+                          float h = ((t / 1500f) + i * 0.07f) % 1f;
+                          return MathHelper.hsvToRgb(h, 0.85f, 1f);
+                      }
+                      case GRADIENT: {
+                          float p = (float) ((Math.sin(t / 700.0 + i * 0.35) + 1) / 2);
+                          return lerp(c.colorA, c.colorB, p);
+                      }
+                      case METALLIC: {
+                          double p = ((t / 90.0) - i * 1.2) % 12;
+                          if (p < 0) p += 12;
+                          float s = p < 3 ? (float) Math.sin(p / 3 * Math.PI) : 0f;
+                          return lerp(0x6E757C, 0xF5F7FA, s);
+                      }
+                      case FIRE: {
+                          float n = (float) (Math.sin(t / 130.0 + i * 1.7) * 0.5 + 0.5);
+                          return lerp(0xFF3B00, 0xFFD000, n);
+                      }
+                      case PULSE: {
+                          float f = (float) (0.65 + 0.35 * Math.sin(t / 300.0));
+                          return lerp(0x000000, c.colorA, f);
+                      }
+                      case GLITTER:
+                          return ((t / 120 + i * 7) % 9 == 0) ? 0xFFFFFF : c.colorA;
+                      default:
+                          return c.colorA;
+                  }
+              }
+
+              private static int lerp(int a, int b, float p) {
+                  int r = (int) (((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255)) * p));
+                  int g = (int) (((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255)) * p));
+                  int bl = (int) ((a & 255) + (((b & 255) - (a & 255)) * p));
+                  return (r << 16) | (g << 8) | bl;
+              }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/SantaConfig.java)"
+          cat > src/main/java/de/santa/santanametext/SantaConfig.java <<'SANTA_EOF'
+          package de.santa.santanametext;
+
+          import com.google.gson.Gson;
+          import com.google.gson.GsonBuilder;
+          import net.fabricmc.loader.api.FabricLoader;
+
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+
+          public class SantaConfig {
+              public boolean enabled = true, bounce = false, bold = false, italic = false;
+              public String prefix = "SANTA", topLine = "tiktok: @santa", bottomLine = "";
+              public Effect prefixEffect = Effect.RAINBOW, nameEffect = Effect.METALLIC,
+                            topEffect = Effect.GRADIENT, bottomEffect = Effect.SOLID;
+              public int colorA = 0xFF3355, colorB = 0xFFD000;
+              /** Logo-Slots: -1 = leer, 0..7 = logo1..logo8.png */
+              public int[] logos = {0, -1, -1};
+
+              private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+              private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("santanametext.json");
+              private static SantaConfig inst;
+
+              public static SantaConfig get() {
+                  if (inst == null) {
+                      try { inst = GSON.fromJson(Files.readString(FILE), SantaConfig.class); } catch (Exception ignored) {}
+                      if (inst == null) inst = new SantaConfig();
+                  }
+                  return inst;
+              }
+
+              public static void save() {
+                  try { Files.writeString(FILE, GSON.toJson(get())); } catch (Exception ignored) {}
+              }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/SantaNameText.java)"
+          cat > src/main/java/de/santa/santanametext/SantaNameText.java <<'SANTA_EOF'
+          package de.santa.santanametext;
+
+          import net.fabricmc.api.ClientModInitializer;
+          import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+          import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+          import net.minecraft.client.option.KeyBinding;
+          import net.minecraft.client.util.InputUtil;
+          import org.lwjgl.glfw.GLFW;
+
+          public class SantaNameText implements ClientModInitializer {
+              @Override
+              public void onInitializeClient() {
+                  SantaConfig.get();
+                  KeyBinding key = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                          "key.santanametext.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, KeyBinding.Category.MISC));
+                  ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+                      while (key.wasPressed()) {
+                          if (mc.currentScreen == null) mc.setScreen(new SantaScreen(null));
+                      }
+                  });
+              }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/SantaScreen.java)"
+          cat > src/main/java/de/santa/santanametext/SantaScreen.java <<'SANTA_EOF'
+          package de.santa.santanametext;
+
+          import net.minecraft.client.MinecraftClient;
+          import net.minecraft.client.gui.DrawContext;
+          import net.minecraft.client.gui.screen.Screen;
+          import net.minecraft.client.gui.widget.ButtonWidget;
+          import net.minecraft.client.gui.widget.TextFieldWidget;
+          import net.minecraft.text.Text;
+
+          import java.util.function.Consumer;
+          import java.util.function.Supplier;
+
+          public class SantaScreen extends Screen {
+              private final Screen parent;
+              private final SantaConfig c = SantaConfig.get();
+
+              public SantaScreen(Screen parent) {
+                  super(Text.literal("Santa Name Text"));
+                  this.parent = parent;
+              }
+
+              @Override
+              protected void init() {
+                  int L = width / 2 - 155, R = width / 2 + 5, W = 150, y = 34, S = 24;
+
+                  toggle(L, y, W, "Aktiv", () -> c.enabled, v -> c.enabled = v);
+                  toggle(R, y, W, "Bounce", () -> c.bounce, v -> c.bounce = v);
+                  y += S;
+                  field(L, y, W, "Prefix", c.prefix, s -> c.prefix = s);
+                  effect(R, y, W, "Prefix", () -> c.prefixEffect, v -> c.prefixEffect = v);
+                  y += S;
+                  effect(L, y, W, "Name", () -> c.nameEffect, v -> c.nameEffect = v);
+                  field(R, y, W, "Farbe A (hex)", String.format("%06X", c.colorA), s -> c.colorA = hex(s, c.colorA));
+                  y += S;
+                  toggle(L, y, 73, "Fett", () -> c.bold, v -> c.bold = v);
+                  toggle(L + 77, y, 73, "Kursiv", () -> c.italic, v -> c.italic = v);
+                  field(R, y, W, "Farbe B (hex)", String.format("%06X", c.colorB), s -> c.colorB = hex(s, c.colorB));
+                  y += S;
+                  field(L, y, W, "Zeile oben", c.topLine, s -> c.topLine = s);
+                  effect(R, y, W, "Oben", () -> c.topEffect, v -> c.topEffect = v);
+                  y += S;
+                  field(L, y, W, "Zeile unten", c.bottomLine, s -> c.bottomLine = s);
+                  effect(R, y, W, "Unten", () -> c.bottomEffect, v -> c.bottomEffect = v);
+                  y += S;
+                  for (int i = 0; i < 3; i++) logoButton(L + i * 104, y, 98, i);
+                  y += S + 4;
+                  addDrawableChild(ButtonWidget.builder(Text.literal("Fertig"), b -> close())
+                          .dimensions(width / 2 - 75, y, 150, 20).build());
+              }
+
+              private void toggle(int x, int y, int w, String name, Supplier<Boolean> get, Consumer<Boolean> set) {
+                  addDrawableChild(ButtonWidget.builder(Text.literal(name + ": " + (get.get() ? "An" : "Aus")), b -> {
+                      set.accept(!get.get());
+                      b.setMessage(Text.literal(name + ": " + (get.get() ? "An" : "Aus")));
+                  }).dimensions(x, y, w, 20).build());
+              }
+
+              private void effect(int x, int y, int w, String name, Supplier<Effect> get, Consumer<Effect> set) {
+                  addDrawableChild(ButtonWidget.builder(Text.literal(name + ": " + get.get().label), b -> {
+                      set.accept(get.get().next());
+                      b.setMessage(Text.literal(name + ": " + get.get().label));
+                  }).dimensions(x, y, w, 20).build());
+              }
+
+              private void logoButton(int x, int y, int w, int slot) {
+                  addDrawableChild(ButtonWidget.builder(logoLabel(slot), b -> {
+                      int v = c.logos[slot] + 1;
+                      c.logos[slot] = v > 7 ? -1 : v;
+                      b.setMessage(logoLabel(slot));
+                  }).dimensions(x, y, w, 20).build());
+              }
+
+              private Text logoLabel(int slot) {
+                  int v = c.logos[slot];
+                  return Text.literal("Logo " + (slot + 1) + ": " + (v < 0 ? "-" : String.valueOf(v + 1)));
+              }
+
+              private void field(int x, int y, int w, String hint, String value, Consumer<String> set) {
+                  TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 20, Text.literal(hint));
+                  f.setMaxLength(48);
+                  f.setPlaceholder(Text.literal(hint));
+                  f.setText(value);
+                  f.setChangedListener(set);
+                  addDrawableChild(f);
+              }
+
+              private static int hex(String s, int fallback) {
+                  try { return Integer.parseInt(s.replace("#", "").trim(), 16) & 0xFFFFFF; } catch (Exception e) { return fallback; }
+              }
+
+              @Override
+              public void render(DrawContext ctx, int mx, int my, float delta) {
+                  super.render(ctx, mx, my, delta);
+                  ctx.drawCenteredTextWithShadow(textRenderer, title, width / 2, 8, 0xFFFFFFFF);
+                  // Live-Vorschau
+                  MinecraftClient mc = MinecraftClient.getInstance();
+                  String name = mc.player != null ? mc.player.getName().getString() : "DeinName";
+                  ctx.drawCenteredTextWithShadow(textRenderer, NameBuilder.main(name), width / 2, 20, 0xFFFFFFFF);
+              }
+
+              @Override
+              public void removed() { SantaConfig.save(); }
+
+              @Override
+              public void close() { client.setScreen(parent); }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/mixin/EntityRendererMixin.java)"
+          cat > src/main/java/de/santa/santanametext/mixin/EntityRendererMixin.java <<'SANTA_EOF'
+          package de.santa.santanametext.mixin;
+
+          import de.santa.santanametext.NameBuilder;
+          import de.santa.santanametext.SantaConfig;
+          import net.minecraft.client.render.command.OrderedRenderCommandQueue;
+          import net.minecraft.client.render.entity.EntityRenderer;
+          import net.minecraft.client.render.entity.state.EntityRenderState;
+          import net.minecraft.client.render.state.CameraRenderState;
+          import net.minecraft.client.util.math.MatrixStack;
+          import net.minecraft.text.Text;
+          import net.minecraft.util.math.Vec3d;
+          import org.spongepowered.asm.mixin.Mixin;
+          import org.spongepowered.asm.mixin.Shadow;
+          import org.spongepowered.asm.mixin.Unique;
+          import org.spongepowered.asm.mixin.injection.At;
+          import org.spongepowered.asm.mixin.injection.Inject;
+          import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+          /** Rendert nach dem normalen Namen noch die Zusatzzeilen darueber und darunter. */
+          @Mixin(EntityRenderer.class)
+          public abstract class EntityRendererMixin {
+              @Unique private static boolean santa$busy;
+
+              @Shadow
+              protected abstract void renderLabelIfPresent(EntityRenderState state, MatrixStack matrices,
+                                                           OrderedRenderCommandQueue queue, CameraRenderState camera);
+
+              @Inject(method = "renderLabelIfPresent", at = @At("TAIL"))
+              private void santa$extra(EntityRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue,
+                                       CameraRenderState camera, CallbackInfo ci) {
+                  if (santa$busy || state != NameBuilder.localState || state.nameLabelPos == null) return;
+                  SantaConfig c = SantaConfig.get();
+                  if (!c.enabled) return;
+
+                  Text oldName = state.displayName;
+                  Vec3d oldPos = state.nameLabelPos;
+                  santa$busy = true;
+                  try {
+                      if (!c.topLine.isBlank()) {
+                          state.displayName = NameBuilder.line(c.topLine, c.topEffect);
+                          state.nameLabelPos = oldPos.add(0, 0.27, 0);
+                          renderLabelIfPresent(state, matrices, queue, camera);
+                      }
+                      if (!c.bottomLine.isBlank()) {
+                          state.displayName = NameBuilder.line(c.bottomLine, c.bottomEffect);
+                          state.nameLabelPos = oldPos.add(0, -0.27, 0);
+                          renderLabelIfPresent(state, matrices, queue, camera);
+                      }
+                  } finally {
+                      state.displayName = oldName;
+                      state.nameLabelPos = oldPos;
+                      santa$busy = false;
+                  }
+              }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/mixin/PlayerRendererMixin.java)"
+          cat > src/main/java/de/santa/santanametext/mixin/PlayerRendererMixin.java <<'SANTA_EOF'
+          package de.santa.santanametext.mixin;
+
+          import de.santa.santanametext.NameBuilder;
+          import de.santa.santanametext.SantaConfig;
+          import net.minecraft.client.MinecraftClient;
+          import net.minecraft.client.network.AbstractClientPlayerEntity;
+          import net.minecraft.client.render.entity.PlayerEntityRenderer;
+          import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
+          import org.spongepowered.asm.mixin.Mixin;
+          import org.spongepowered.asm.mixin.injection.At;
+          import org.spongepowered.asm.mixin.injection.Inject;
+          import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+          @Mixin(PlayerEntityRenderer.class)
+          public class PlayerRendererMixin {
+              @Inject(method = "updateRenderState(Lnet/minecraft/client/network/AbstractClientPlayerEntity;Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;F)V",
+                      at = @At("TAIL"))
+              private void santa$name(AbstractClientPlayerEntity player, PlayerEntityRenderState state, float tickDelta, CallbackInfo ci) {
+                  if (player != MinecraftClient.getInstance().player || !SantaConfig.get().enabled) return;
+                  NameBuilder.localState = state;
+                  state.displayName = NameBuilder.main(player.getName().getString());
+                  if (state.nameLabelPos != null) state.nameLabelPos = state.nameLabelPos.add(0, NameBuilder.bounce(), 0);
+              }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/font/logos.json)"
+          cat > src/main/resources/assets/santanametext/font/logos.json <<'SANTA_EOF'
+          {
+            "providers": [
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo1.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue000"
+                ]
+              },
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo2.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue001"
+                ]
+              },
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo3.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue002"
+                ]
+              },
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo4.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue003"
+                ]
+              },
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo5.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue004"
+                ]
+              },
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo6.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue005"
+                ]
+              },
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo7.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue006"
+                ]
+              },
+              {
+                "type": "bitmap",
+                "file": "santanametext:font/logos/logo8.png",
+                "ascent": 7,
+                "height": 8,
+                "chars": [
+                  "\ue007"
+                ]
+              }
+            ]
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/lang/en_us.json)"
+          cat > src/main/resources/assets/santanametext/lang/en_us.json <<'SANTA_EOF'
+          { "key.santanametext.menu": "Open Santa Name Text menu" }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo1.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGElEQVR4nGP4TwAwgIg7GjZY8dBSgA8AADW7wG2urDsuAAAAAElFTkSuQmCC' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo1.png
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo2.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVR4nGP4TwAwgAiNCux4aCnABwDrd83JVCcc3QAAAABJRU5ErkJggg==' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo2.png
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo3.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGElEQVR4nGP4TwAwgAiNE1FY8dBSgA8AANKHwdU1JR+OAAAAAElFTkSuQmCC' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo3.png
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo4.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAF0lEQVR4nGP4TwAwgMl9DNjx0FKABwAAXLjSAae/aKMAAAAASUVORK5CYII=' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo4.png
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo5.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAF0lEQVR4nGP4TwAwgIhVNtjx0FKADwAAFmXXof4SIiEAAAAASUVORK5CYII=' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo5.png
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo6.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAF0lEQVR4nGP4TwAwgIkTJ7DioaUAHwAA1gbLrYKtUQUAAAAASUVORK5CYII=' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo6.png
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo7.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVR4nGP4TwAwgMk8Bux4aCnAAwCJvsbBDYI4LAAAAABJRU5ErkJggg==' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo7.png
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo8.png)"
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGElEQVR4nGP4TwAwgIhnz55hxUNLAT4AAA709HVS74fwAAAAAElFTkSuQmCC' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo8.png
+          mkdir -p "$(dirname src/main/resources/fabric.mod.json)"
+          cat > src/main/resources/fabric.mod.json <<'SANTA_EOF'
+          {
+            "schemaVersion": 1,
+            "id": "santanametext",
+            "version": "1.0.0",
+            "name": "Santa Name Text",
+            "description": "Eigener Nametag: Logos, Prefix, Zusatzzeilen und Texteffekte.",
+            "authors": ["Santa"],
+            "environment": "client",
+            "entrypoints": { "client": ["de.santa.santanametext.SantaNameText"] },
+            "mixins": ["santanametext.mixins.json"],
+            "depends": { "fabricloader": ">=0.16.0", "minecraft": "~1.21.11", "java": ">=21", "fabric-api": "*" }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/resources/santanametext.mixins.json)"
+          cat > src/main/resources/santanametext.mixins.json <<'SANTA_EOF'
+          {
+            "required": true,
+            "package": "de.santa.santanametext.mixin",
+            "compatibilityLevel": "JAVA_21",
+            "client": ["PlayerRendererMixin", "EntityRendererMixin"],
+            "injectors": { "defaultRequire": 1 }
+          }
+          SANTA_EOF
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -15,8 +569,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.2.1
-      - run: gradle build --no-daemon
+      - name: Mod bauen
+        working-directory: work
+        run: gradle build --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: santanametext-jar
-          path: build/libs/santanametext-*.jar
+          path: work/build/libs/santanametext-1.0.0.jar
