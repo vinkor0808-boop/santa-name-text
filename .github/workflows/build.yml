@@ -257,7 +257,6 @@ jobs:
           cat > src/main/java/de/santa/santanametext/NameBuilder.java <<'SANTA_EOF'
           package de.santa.santanametext;
 
-          import net.minecraft.client.render.entity.state.EntityRenderState;
           import net.minecraft.text.MutableText;
           import net.minecraft.text.Style;
           import net.minecraft.text.StyleSpriteSource;
@@ -273,7 +272,7 @@ jobs:
               private NameBuilder() {}
 
               /** Render-State des eigenen Spielers (wird vom Mixin gesetzt). */
-              public static EntityRenderState localState;
+              public static Text lastMain;
 
               public static double bounce() {
                   return SantaConfig.get().bounce ? Math.abs(Math.sin(Util.getMeasuringTimeMs() / 260.0)) * 0.12 : 0;
@@ -499,15 +498,16 @@ jobs:
           import net.minecraft.client.MinecraftClient;
           import net.minecraft.client.gui.DrawContext;
           import net.minecraft.client.gui.screen.Screen;
-          import net.minecraft.client.gui.widget.ButtonWidget;
           import net.minecraft.client.gui.widget.TextFieldWidget;
           import net.minecraft.text.Style;
           import net.minecraft.text.Text;
 
+          import java.util.ArrayList;
+          import java.util.List;
           import java.util.function.Consumer;
           import java.util.function.Supplier;
 
-          /** Glas-Menue: Tabs (Prefix / Name / Oben / Unten), 30 Schriften, Effekte, Farben, Live-Vorschau. */
+          /** Modernes Glas-Menue: Tabs, 30 Schriften, Effekte, Farbwaehler, Live-Vorschau. */
           public class SantaScreen extends Screen {
               private static final int[] SWATCHES = {
                       0xFF3B30, 0xFF9500, 0xFFD60A, 0x9BEA2C, 0x30D158, 0x00C7BE,
@@ -517,8 +517,12 @@ jobs:
               private final Screen parent;
               private final SantaConfig c = SantaConfig.get();
               private int tab = 1;
+              private boolean editB = false;
               private int px, py, pw, ph;
-              private TextFieldWidget fieldA, fieldB;
+              private TextFieldWidget hexField;
+              private final List<int[]> fieldBoxes = new ArrayList<>();
+              private final List<Object[]> hints = new ArrayList<>();
+              private final List<TextFieldWidget> fields = new ArrayList<>();
 
               public SantaScreen(Screen parent) {
                   super(Text.literal("Santa Name Text"));
@@ -534,84 +538,106 @@ jobs:
                   }
               }
 
+              private void btn(int x, int y, int w, int h, Supplier<Text> label, Supplier<Boolean> sel, boolean accent, Runnable r) {
+                  addDrawableChild(new Ui.Btn(x, y, w, h, label, sel, accent, r));
+              }
+
               @Override
               protected void init() {
-                  pw = Math.min(width - 10, 420);
-                  ph = Math.min(height - 10, 252);
+                  fieldBoxes.clear();
+                  hints.clear();
+                  fields.clear();
+                  pw = Math.min(width - 10, 440);
+                  ph = Math.min(height - 6, 300);
                   px = (width - pw) / 2;
                   py = (height - ph) / 2;
-                  int inner = pw - 20;
-                  int colW = (inner - 10) / 2;
-                  int L = px + 10;
-                  int R = L + colW + 10;
+                  int inner = pw - 24;
+                  int colW = (inner - 12) / 2;
+                  int L = px + 12;
+                  int R = L + colW + 12;
                   SantaConfig.TagElement e = cur();
 
                   // Tabs
-                  int y = py + 70;
-                  int tw = (inner - 12) / 4;
+                  int y = py + 68;
+                  int tw = (inner - 9) / 4;
                   for (int i = 0; i < 4; i++) {
                       final int idx = i;
-                      addDrawableChild(ButtonWidget.builder(Text.literal((tab == idx ? "> " : "") + TAB_NAMES[idx]), b -> {
+                      btn(L + i * (tw + 3), y, tw, 16, () -> Text.literal(TAB_NAMES[idx]), () -> tab == idx, false, () -> {
                           tab = idx;
                           clearAndInit();
-                      }).dimensions(L + i * (tw + 4), y, tw, 18).build());
+                      });
                   }
 
-                  // Text (nicht beim Namen)
-                  y += 24;
+                  // Linke Spalte
+                  y += 22;
                   if (tab == 1) {
-                      ButtonWidget b = ButtonWidget.builder(Text.literal("(dein Spielername)"), x -> {})
-                              .dimensions(L, y, colW, 18).build();
-                      b.active = false;
-                      addDrawableChild(b);
+                      btn(L, y, colW, 16, () -> Text.literal("Dein Spielername"), null, false, () -> {});
                   } else {
                       field(L, y, colW, tab == 0 ? "Prefix-Text" : "Zeile", e.text, 40, s -> e.text = s);
                   }
+                  y += 20;
+                  btn(L, y, colW, 16, () -> Text.literal("Effekt:  " + e.effect.label + "  >"), null, false,
+                          () -> e.effect = e.effect.next());
 
-                  // Effekt
-                  y += 22;
-                  addDrawableChild(ButtonWidget.builder(Text.literal("Effekt: " + e.effect.label), b -> {
-                      e.effect = e.effect.next();
-                      b.setMessage(Text.literal("Effekt: " + e.effect.label));
-                  }).dimensions(L, y, colW, 18).build());
+                  // Farbziel A / B + Hex
+                  y += 20;
+                  int pillW = 34;
+                  btn(L, y, pillW, 16, () -> Text.literal("Farbe A"), () -> !editB, false, () -> { editB = false; clearAndInit(); });
+                  btn(L + pillW + 2, y, pillW, 16, () -> Text.literal("Farbe B"), () -> editB, false, () -> { editB = true; clearAndInit(); });
+                  int hx = L + 2 * pillW + 6;
+                  hexField = field(hx, y, colW - (2 * pillW + 6), "Hex", hex(editB ? e.colorB : e.colorA), 7, s -> {
+                      int old = editB ? e.colorB : e.colorA;
+                      int nv = parseHex(s, old);
+                      if (editB) e.colorB = nv; else e.colorA = nv;
+                  });
 
-                  // Farben (Hex)
-                  y += 22;
-                  int hw = (colW - 4) / 2;
-                  fieldA = field(L, y, hw, "Farbe A", hex(e.colorA), 7, s -> e.colorA = parseHex(s, e.colorA));
-                  fieldB = field(L + hw + 4, y, hw, "Farbe B", hex(e.colorB), 7, s -> e.colorB = parseHex(s, e.colorB));
+                  // Farbwaehler
+                  y += 20;
+                  int stylesY = py + ph - 30 - 18;
+                  int swY = stylesY - 14;
+                  int pickH = Math.max(36, swY - 4 - y);
+                  addDrawableChild(new Ui.Picker(L, y, colW, pickH, editB ? e.colorB : e.colorA, rgb -> {
+                      if (editB) e.colorB = rgb; else e.colorA = rgb;
+                      hexField.setText(hex(rgb));
+                  }));
 
-                  // Farbfelder: Reihe A, Reihe B
-                  y += 22;
-                  swatches(L, y, colW, col -> { e.colorA = col; fieldA.setText(hex(col)); });
-                  y += 16;
-                  swatches(L, y, colW, col -> { e.colorB = col; fieldB.setText(hex(col)); });
+                  // Farbfelder
+                  int n = SWATCHES.length;
+                  int sw = (colW - (n - 1) * 2) / n;
+                  for (int i = 0; i < n; i++) {
+                      final int col = SWATCHES[i];
+                      addDrawableChild(new Ui.Btn(L + i * (sw + 2), swY, sw, 10, () -> Text.empty(), null, false, () -> {
+                          if (editB) e.colorB = col; else e.colorA = col;
+                          clearAndInit();
+                      }) {
+                          @Override
+                          protected void renderWidget(DrawContext ctx, int mx, int my, float d) {
+                              Ui.box(ctx, getX(), getY(), getWidth(), getHeight(), 0xFF000000 | col, isHovered() ? 0xFFFFFFFF : 0x60000000);
+                          }
+                      });
+                  }
 
-                  // Fett / Kursiv / Unterstrichen / Durchgestrichen
-                  y += 18;
-                  int sw = (colW - 9) / 4;
-                  styleToggle(L, y, sw, "B", Style.EMPTY.withBold(true), () -> e.bold, v -> e.bold = v);
-                  styleToggle(L + (sw + 3), y, sw, "I", Style.EMPTY.withItalic(true), () -> e.italic, v -> e.italic = v);
-                  styleToggle(L + 2 * (sw + 3), y, sw, "U", Style.EMPTY.withUnderline(true), () -> e.underline, v -> e.underline = v);
-                  styleToggle(L + 3 * (sw + 3), y, sw, "S", Style.EMPTY.withStrikethrough(true), () -> e.strike, v -> e.strike = v);
+                  // B / I / U / S
+                  int stw = (colW - 9) / 4;
+                  btn(L, stylesY, stw, 16, () -> Text.literal("B").setStyle(Style.EMPTY.withBold(true)), () -> e.bold, false, () -> e.bold = !e.bold);
+                  btn(L + (stw + 3), stylesY, stw, 16, () -> Text.literal("I").setStyle(Style.EMPTY.withItalic(true)), () -> e.italic, false, () -> e.italic = !e.italic);
+                  btn(L + 2 * (stw + 3), stylesY, stw, 16, () -> Text.literal("U").setStyle(Style.EMPTY.withUnderline(true)), () -> e.underline, false, () -> e.underline = !e.underline);
+                  btn(L + 3 * (stw + 3), stylesY, stw, 16, () -> Text.literal("S").setStyle(Style.EMPTY.withStrikethrough(true)), () -> e.strike, false, () -> e.strike = !e.strike);
 
-                  // Schrift-Raster (rechts): 5 Spalten x 6 Reihen = 30 Stile
+                  // Schrift-Raster rechts: 5 x 6
                   FontStyle[] fonts = FontStyle.values();
-                  int gy = py + 94;
+                  int gy = py + 68 + 22;
                   int bw = (colW - 8) / 5;
                   for (int i = 0; i < fonts.length; i++) {
                       final FontStyle fs = fonts[i];
                       int gx = R + (i % 5) * (bw + 2);
-                      int gyy = gy + (i / 5) * 18;
-                      addDrawableChild(ButtonWidget.builder(NameBuilder.sample(fs, fs == e.font), b -> {
-                          e.font = fs;
-                          clearAndInit();
-                      }).dimensions(gx, gyy, bw, 16).build());
+                      int gyy = gy + (i / 5) * 20;
+                      btn(gx, gyy, bw, 18, () -> NameBuilder.sample(fs, fs == e.font), () -> fs == e.font, false, () -> e.font = fs);
                   }
 
-                  // Unten: globale Schalter
+                  // Untere Leiste
                   int by = py + ph - 26;
-                  int aw = (inner - 4 * 6 - 60 - 66) / 3;
+                  int aw = (inner - 3 * 6 - 50 - 64) / 3;
                   int bx = L;
                   toggle(bx, by, aw, "Aktiv", () -> c.enabled, v -> c.enabled = v);
                   bx += aw + 6;
@@ -619,54 +645,37 @@ jobs:
                   bx += aw + 6;
                   toggle(bx, by, aw, "Tiers rechts", () -> c.tiersRight, v -> c.tiersRight = v);
                   bx += aw + 6;
-                  field(bx, by, 60, "Trenner", c.separator, 3, s -> c.separator = s);
-                  bx += 66;
-                  addDrawableChild(ButtonWidget.builder(Text.literal("Fertig"), b -> close())
-                          .dimensions(bx, by, 60, 18).build());
+                  field(bx, by, 50, "Trenner", c.separator, 3, s -> c.separator = s);
+                  bx += 56;
+                  btn(bx, by, 64, 18, () -> Text.literal("Fertig"), null, true, this::close);
               }
 
               private TextFieldWidget field(int x, int y, int w, String hint, String value, int max, Consumer<String> set) {
-                  TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 18, Text.literal(hint));
+                  int h = y == 0 ? 16 : (y > py + ph - 40 ? 18 : 16);
+                  TextFieldWidget f = new TextFieldWidget(textRenderer, x + 5, y + (h - 8) / 2 , w - 10, 10, Text.literal(hint));
+                  f.setDrawsBackground(false);
                   f.setMaxLength(max);
-                  f.setPlaceholder(Text.literal(hint));
                   f.setText(value);
                   f.setChangedListener(set);
                   addDrawableChild(f);
+                  fieldBoxes.add(new int[]{x, y, w, h});
+                  hints.add(new Object[]{f, hint, x + 5, y + (h - 8) / 2});
                   return f;
               }
 
               private void toggle(int x, int y, int w, String name, Supplier<Boolean> get, Consumer<Boolean> set) {
-                  addDrawableChild(ButtonWidget.builder(toggleLabel(name, get.get()), b -> {
-                      set.accept(!get.get());
-                      b.setMessage(toggleLabel(name, get.get()));
-                  }).dimensions(x, y, w, 18).build());
-              }
-
-              private static Text toggleLabel(String name, boolean on) {
-                  return Text.literal(name + ": " + (on ? "An" : "Aus"))
-                          .setStyle(Style.EMPTY.withColor(on ? 0x7CFC9A : 0xFFFFFF));
-              }
-
-              private void styleToggle(int x, int y, int w, String letter, Style fmt, Supplier<Boolean> get, Consumer<Boolean> set) {
-                  addDrawableChild(ButtonWidget.builder(styleLabel(letter, fmt, get.get()), b -> {
-                      set.accept(!get.get());
-                      b.setMessage(styleLabel(letter, fmt, get.get()));
-                  }).dimensions(x, y, w, 18).build());
-              }
-
-              private static Text styleLabel(String letter, Style fmt, boolean on) {
-                  return Text.literal(letter).setStyle(fmt.withColor(on ? 0xFFD60A : 0xFFFFFF));
-              }
-
-              private void swatches(int x, int y, int totalW, Consumer<Integer> pick) {
-                  int n = SWATCHES.length;
-                  int w = (totalW - (n - 1) * 2) / n;
-                  for (int i = 0; i < n; i++) {
-                      final int col = SWATCHES[i];
-                      addDrawableChild(ButtonWidget.builder(
-                              Text.literal("█").setStyle(Style.EMPTY.withColor(col)), b -> pick.accept(col))
-                              .dimensions(x + i * (w + 2), y, w, 14).build());
-                  }
+                  addDrawableChild(new Ui.Btn(x, y, w, 18, () -> Text.literal(name), get, false, () -> set.accept(!get.get())) {
+                      @Override
+                      protected void renderWidget(DrawContext ctx, int mx, int my, float d) {
+                          boolean on = get.get();
+                          Ui.box(ctx, getX(), getY(), getWidth(), getHeight(), isHovered() ? Ui.HOVER : Ui.OFF, 0x28FFFFFF);
+                          int tx = getX() + 5, ty = getY() + 5;
+                          ctx.fill(tx, ty, tx + 14, ty + 8, on ? 0xFF30D158 : 0xFF555B66);
+                          int kx = on ? tx + 8 : tx;
+                          ctx.fill(kx, ty, kx + 6, ty + 8, 0xFFFFFFFF);
+                          ctx.drawTextWithShadow(textRenderer, name, tx + 19, getY() + 5, 0xFFFFFFFF);
+                      }
+                  });
               }
 
               private static String hex(int rgb) { return String.format("%06X", rgb & 0xFFFFFF); }
@@ -678,22 +687,31 @@ jobs:
               @Override
               public void render(DrawContext ctx, int mx, int my, float delta) {
                   // Glas-Panel
-                  ctx.fill(px, py, px + pw, py + ph, 0xB0121A24);
-                  ctx.fillGradient(px, py, px + pw, py + 66, 0x38FFFFFF, 0x08FFFFFF);
-                  ctx.fill(px, py, px + pw, py + 1, 0x90FFFFFF);
-                  ctx.fill(px, py + ph - 1, px + pw, py + ph, 0x40FFFFFF);
-                  ctx.fill(px, py, px + 1, py + ph, 0x60FFFFFF);
-                  ctx.fill(px + pw - 1, py, px + pw, py + ph, 0x40FFFFFF);
+                  ctx.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, 0x50000000);
+                  ctx.fill(px, py, px + pw, py + ph, 0xC0101620);
+                  ctx.fillGradient(px, py, px + pw, py + 64, 0x30FFFFFF, 0x06FFFFFF);
+                  ctx.fill(px, py, px + pw, py + 2, Ui.ACCENT);
+                  ctx.fill(px, py + ph - 1, px + pw, py + ph, 0x30FFFFFF);
+                  ctx.fill(px, py, px + 1, py + ph, 0x30FFFFFF);
+                  ctx.fill(px + pw - 1, py, px + pw, py + ph, 0x30FFFFFF);
                   // Vorschau-Kasten
-                  ctx.fill(px + 10, py + 8, px + pw - 10, py + 62, 0x66000000);
+                  Ui.box(ctx, px + 12, py + 10, pw - 24, 52, 0x80000000, 0x30FFFFFF);
+                  for (int[] b : fieldBoxes) Ui.box(ctx, b[0], b[1], b[2], b[3], 0x90000000, 0x40FFFFFF);
 
                   super.render(ctx, mx, my, delta);
+
+                  for (Object[] h : hints) {
+                      TextFieldWidget f = (TextFieldWidget) h[0];
+                      if (f.getText().isEmpty() && !f.isFocused())
+                          ctx.drawTextWithShadow(textRenderer, (String) h[1], (Integer) h[2], (Integer) h[3], 0xFF7A828C);
+                  }
 
                   int cx = px + pw / 2;
                   MinecraftClient mc = MinecraftClient.getInstance();
                   String name = mc.player != null ? mc.player.getName().getString() : "DeinName";
-                  ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("Santa Name Text  -  Vorschau"), cx, py + 11, 0xFFB0B8C0);
-                  int ly = py + 24;
+                  ctx.drawTextWithShadow(textRenderer, "SANTA NAME TEXT", px + 18, py + 14, 0xFF9A82FF);
+                  int lines = 1 + (c.top.text.isBlank() ? 0 : 1) + (c.bottom.text.isBlank() ? 0 : 1);
+                  int ly = py + 10 + (52 - lines * 12) / 2 + 2;
                   if (!c.top.text.isBlank()) {
                       ctx.drawCenteredTextWithShadow(textRenderer, NameBuilder.line(c.top), cx, ly, 0xFFFFFFFF);
                       ly += 12;
@@ -705,10 +723,11 @@ jobs:
                   }
 
                   FontStyle fs = cur().font;
-                  int colW = (pw - 20 - 10) / 2;
-                  int R = px + 10 + colW + 10;
+                  int colW = (pw - 24 - 12) / 2;
+                  int R = px + 12 + colW + 12;
                   ctx.drawTextWithShadow(textRenderer, "Schrift: " + fs.label + " (" + (fs.ordinal() + 1) + "/" + FontStyle.values().length + ")",
-                          R, py + 94 + 6 * 18 + 2, 0xFFB0B8C0);
+                          R, py + 68 + 22 + 6 * 20 + 2, 0xFFB0B8C0);
+                  ctx.drawTextWithShadow(textRenderer, "Eigener Name nur in F5 sichtbar", R, py + 68 + 22 + 6 * 20 + 14, 0xFF6B737D);
               }
 
               @Override
@@ -718,61 +737,146 @@ jobs:
               public void close() { client.setScreen(parent); }
           }
           SANTA_EOF
-          mkdir -p "$(dirname src/main/java/de/santa/santanametext/mixin/EntityRendererMixin.java)"
-          cat > src/main/java/de/santa/santanametext/mixin/EntityRendererMixin.java <<'SANTA_EOF'
-          package de.santa.santanametext.mixin;
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/Ui.java)"
+          cat > src/main/java/de/santa/santanametext/Ui.java <<'SANTA_EOF'
+          package de.santa.santanametext;
 
-          import de.santa.santanametext.NameBuilder;
-          import de.santa.santanametext.SantaConfig;
-          import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-          import net.minecraft.client.render.entity.EntityRenderer;
-          import net.minecraft.client.render.entity.state.EntityRenderState;
-          import net.minecraft.client.render.state.CameraRenderState;
-          import net.minecraft.client.util.math.MatrixStack;
+          import net.minecraft.client.MinecraftClient;
+          import net.minecraft.client.gui.Click;
+          import net.minecraft.client.gui.DrawContext;
+          import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
+          import net.minecraft.client.gui.widget.ClickableWidget;
           import net.minecraft.text.Text;
-          import net.minecraft.util.math.Vec3d;
-          import org.spongepowered.asm.mixin.Mixin;
-          import org.spongepowered.asm.mixin.Shadow;
-          import org.spongepowered.asm.mixin.Unique;
-          import org.spongepowered.asm.mixin.injection.At;
-          import org.spongepowered.asm.mixin.injection.Inject;
-          import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-          /** Rendert nach dem normalen Namen noch die Zusatzzeilen darueber und darunter. */
-          @Mixin(EntityRenderer.class)
-          public abstract class EntityRendererMixin {
-              @Unique private static boolean santa$busy;
+          import java.util.function.Consumer;
+          import java.util.function.Supplier;
 
-              @Shadow
-              protected abstract void renderLabelIfPresent(EntityRenderState state, MatrixStack matrices,
-                                                           OrderedRenderCommandQueue queue, CameraRenderState camera);
+          /** Flache, moderne Widgets. */
+          final class Ui {
+              private Ui() {}
 
-              @Inject(method = "renderLabelIfPresent", at = @At("TAIL"))
-              private void santa$extra(EntityRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue,
-                                       CameraRenderState camera, CallbackInfo ci) {
-                  if (santa$busy || state != NameBuilder.localState || state.nameLabelPos == null) return;
-                  SantaConfig c = SantaConfig.get();
-                  if (!c.enabled) return;
+              static final int ACCENT = 0xFF7C5CFF;
+              static final int ACCENT_DIM = 0xB05B43D6;
+              static final int OFF = 0x30FFFFFF;
+              static final int HOVER = 0x4CFFFFFF;
 
-                  Text oldName = state.displayName;
-                  Vec3d oldPos = state.nameLabelPos;
-                  santa$busy = true;
-                  try {
-                      if (!c.top.text.isBlank()) {
-                          state.displayName = NameBuilder.line(c.top);
-                          state.nameLabelPos = oldPos.add(0, 0.27, 0);
-                          renderLabelIfPresent(state, matrices, queue, camera);
-                      }
-                      if (!c.bottom.text.isBlank()) {
-                          state.displayName = NameBuilder.line(c.bottom);
-                          state.nameLabelPos = oldPos.add(0, -0.27, 0);
-                          renderLabelIfPresent(state, matrices, queue, camera);
-                      }
-                  } finally {
-                      state.displayName = oldName;
-                      state.nameLabelPos = oldPos;
-                      santa$busy = false;
+              static void box(DrawContext ctx, int x, int y, int w, int h, int fill, int border) {
+                  ctx.fill(x, y, x + w, y + h, fill);
+                  ctx.fill(x, y, x + w, y + 1, border);
+                  ctx.fill(x, y + h - 1, x + w, y + h, border);
+                  ctx.fill(x, y, x + 1, y + h, border);
+                  ctx.fill(x + w - 1, y, x + w, y + h, border);
+              }
+
+              static class Btn extends ClickableWidget {
+                  private final Supplier<Text> label;
+                  private final Supplier<Boolean> selected;
+                  private final Runnable action;
+                  private final boolean accent;
+
+                  Btn(int x, int y, int w, int h, Supplier<Text> label, Supplier<Boolean> selected, boolean accent, Runnable action) {
+                      super(x, y, w, h, Text.empty());
+                      this.label = label;
+                      this.selected = selected;
+                      this.accent = accent;
+                      this.action = action;
                   }
+
+                  @Override
+                  public void onClick(Click click, boolean doubled) { action.run(); }
+
+                  @Override
+                  protected void renderWidget(DrawContext ctx, int mx, int my, float delta) {
+                      boolean sel = selected != null && selected.get();
+                      boolean hov = isHovered();
+                      int bg = accent ? (hov ? 0xFF9A82FF : ACCENT) : sel ? (hov ? 0xE0765CF0 : ACCENT_DIM) : hov ? HOVER : OFF;
+                      int border = sel || accent ? 0xFFC9BDFF : hov ? 0x80FFFFFF : 0x28FFFFFF;
+                      box(ctx, getX(), getY(), getWidth(), getHeight(), bg, border);
+                      var tr = MinecraftClient.getInstance().textRenderer;
+                      ctx.drawCenteredTextWithShadow(tr, label.get(), getX() + getWidth() / 2,
+                              getY() + (getHeight() - 8) / 2, 0xFFFFFFFF);
+                  }
+
+                  @Override
+                  protected void appendClickableNarrations(NarrationMessageBuilder builder) {}
+              }
+
+              /** Farbwaehler: Saettigung/Helligkeit-Feld + Farbton-Leiste. */
+              static final class Picker extends ClickableWidget {
+                  private float h, s, v;
+                  private boolean dragHue;
+                  private final Consumer<Integer> onPick;
+                  private static final int BAR = 10;
+
+                  Picker(int x, int y, int w, int hgt, int rgb, Consumer<Integer> onPick) {
+                      super(x, y, w, hgt, Text.empty());
+                      this.onPick = onPick;
+                      float[] hsv = toHsv(rgb);
+                      h = hsv[0]; s = hsv[1]; v = hsv[2];
+                  }
+
+                  private int fieldW() { return getWidth() - BAR - 4; }
+
+                  @Override
+                  public void onClick(Click click, boolean doubled) {
+                      dragHue = click.x() >= getX() + fieldW() + 2;
+                      apply(click.x(), click.y());
+                  }
+
+                  @Override
+                  protected void onDrag(Click click, double dx, double dy) { apply(click.x(), click.y()); }
+
+                  private void apply(double mx, double my) {
+                      if (dragHue) {
+                          h = clamp((float) ((my - getY()) / (getHeight() - 1)));
+                      } else {
+                          s = clamp((float) ((mx - getX()) / (fieldW() - 1)));
+                          v = 1f - clamp((float) ((my - getY()) / (getHeight() - 1)));
+                      }
+                      onPick.accept(hsvToRgb(h, s, v));
+                  }
+
+                  @Override
+                  protected void renderWidget(DrawContext ctx, int mx, int my, float delta) {
+                      int x = getX(), y = getY(), fw = fieldW(), hh = getHeight();
+                      for (int i = 0; i < fw; i += 2) {
+                          int top = 0xFF000000 | hsvToRgb(h, i / (float) fw, 1f);
+                          ctx.fillGradient(x + i, y, Math.min(x + i + 2, x + fw), y + hh, top, 0xFF000000);
+                      }
+                      int bx = x + fw + 4;
+                      for (int j = 0; j < hh; j += 2) {
+                          int col = 0xFF000000 | hsvToRgb(j / (float) hh, 1f, 1f);
+                          ctx.fill(bx, y + j, bx + BAR, Math.min(y + j + 2, y + hh), col);
+                      }
+                      // Marker
+                      int cx = x + Math.round(s * (fw - 1));
+                      int cy = y + Math.round((1f - v) * (hh - 1));
+                      ctx.drawStrokedRectangle(cx - 2, cy - 2, 5, 5, 0xFFFFFFFF);
+                      ctx.drawStrokedRectangle(cx - 3, cy - 3, 7, 7, 0xFF000000);
+                      int my2 = y + Math.round(h * (hh - 1));
+                      ctx.fill(bx - 2, my2 - 1, bx + BAR + 2, my2 + 1, 0xFFFFFFFF);
+                  }
+
+                  @Override
+                  protected void appendClickableNarrations(NarrationMessageBuilder builder) {}
+              }
+
+              static float clamp(float f) { return f < 0 ? 0 : Math.min(f, 1f); }
+
+              static int hsvToRgb(float h, float s, float v) {
+                  return net.minecraft.util.math.MathHelper.hsvToRgb(h >= 1f ? 0.9999f : h, s, v) & 0xFFFFFF;
+              }
+
+              static float[] toHsv(int rgb) {
+                  float r = ((rgb >> 16) & 255) / 255f, g = ((rgb >> 8) & 255) / 255f, b = (rgb & 255) / 255f;
+                  float max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b)), d = max - min;
+                  float h;
+                  if (d == 0) h = 0;
+                  else if (max == r) h = (((g - b) / d) % 6) / 6f;
+                  else if (max == g) h = (((b - r) / d) + 2) / 6f;
+                  else h = (((r - g) / d) + 4) / 6f;
+                  if (h < 0) h += 1f;
+                  return new float[]{h, max == 0 ? 0 : d / max, max};
               }
           }
           SANTA_EOF
@@ -783,30 +887,70 @@ jobs:
           import de.santa.santanametext.NameBuilder;
           import de.santa.santanametext.SantaConfig;
           import net.minecraft.client.MinecraftClient;
+          import net.minecraft.client.render.command.OrderedRenderCommandQueue;
           import net.minecraft.client.render.entity.PlayerEntityRenderer;
           import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
+          import net.minecraft.client.render.state.CameraRenderState;
+          import net.minecraft.client.util.math.MatrixStack;
           import net.minecraft.entity.Entity;
           import net.minecraft.entity.PlayerLikeEntity;
+          import net.minecraft.text.Text;
           import net.minecraft.util.math.Vec3d;
           import org.spongepowered.asm.mixin.Mixin;
+          import org.spongepowered.asm.mixin.Shadow;
+          import org.spongepowered.asm.mixin.Unique;
           import org.spongepowered.asm.mixin.injection.At;
           import org.spongepowered.asm.mixin.injection.Inject;
           import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
           @Mixin(PlayerEntityRenderer.class)
-          public class PlayerRendererMixin {
-              // In 1.21.11 ist der erste Parameter (nach Typ-Loeschung) PlayerLikeEntity.
-              @Inject(method = "updateRenderState(Lnet/minecraft/entity/PlayerLikeEntity;Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;F)V",
-                      at = @At("TAIL"))
+          public abstract class PlayerRendererMixin {
+              @Unique private static boolean santa$busy;
+
+              @Shadow
+              protected abstract void renderLabelIfPresent(PlayerEntityRenderState state, MatrixStack matrices,
+                                                           OrderedRenderCommandQueue queue, CameraRenderState camera);
+
+              /** Eigenen Namen setzen (Vanilla zeigt den eigenen Namen sonst nie an). */
+              @Inject(method = "updateRenderState(Lnet/minecraft/entity/PlayerLikeEntity;Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;F)V", at = @At("TAIL"))
               private void santa$name(PlayerLikeEntity player, PlayerEntityRenderState state, float tickDelta, CallbackInfo ci) {
                   Object self = player;
                   if (self != (Object) MinecraftClient.getInstance().player || !SantaConfig.get().enabled) return;
                   Entity entity = (Entity) self;
-                  NameBuilder.localState = state;
-                  // Vanilla zeigt den eigenen Namen nie an (Label ist null) -> hier selbst setzen.
-                  state.displayName = NameBuilder.main(entity.getName().getString(), state.displayName);
+                  Text main = NameBuilder.main(entity.getName().getString(), state.displayName);
+                  NameBuilder.lastMain = main;
+                  state.displayName = main;
                   Vec3d pos = state.nameLabelPos != null ? state.nameLabelPos : new Vec3d(0, entity.getHeight(), 0);
                   state.nameLabelPos = pos.add(0, NameBuilder.bounce(), 0);
+              }
+
+              /** Zeile oben und unten dazurendern (nach dem normalen Namen). */
+              @Inject(method = "renderLabelIfPresent(Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;Lnet/minecraft/client/render/state/CameraRenderState;)V", at = @At("TAIL"))
+              private void santa$extra(PlayerEntityRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue,
+                                       CameraRenderState camera, CallbackInfo ci) {
+                  if (santa$busy || state.displayName == null || state.displayName != NameBuilder.lastMain
+                          || state.nameLabelPos == null) return;
+                  SantaConfig c = SantaConfig.get();
+                  if (!c.enabled) return;
+                  Text oldName = state.displayName;
+                  Vec3d oldPos = state.nameLabelPos;
+                  santa$busy = true;
+                  try {
+                      if (!c.top.text.isBlank()) {
+                          state.displayName = NameBuilder.line(c.top);
+                          state.nameLabelPos = oldPos.add(0, 0.27, 0);
+                          this.renderLabelIfPresent(state, matrices, queue, camera);
+                      }
+                      if (!c.bottom.text.isBlank()) {
+                          state.displayName = NameBuilder.line(c.bottom);
+                          state.nameLabelPos = oldPos.add(0, -0.27, 0);
+                          this.renderLabelIfPresent(state, matrices, queue, camera);
+                      }
+                  } finally {
+                      state.displayName = oldName;
+                      state.nameLabelPos = oldPos;
+                      santa$busy = false;
+                  }
               }
           }
           SANTA_EOF
@@ -835,7 +979,7 @@ jobs:
             "required": true,
             "package": "de.santa.santanametext.mixin",
             "compatibilityLevel": "JAVA_21",
-            "client": ["PlayerRendererMixin", "EntityRendererMixin"],
+            "client": ["PlayerRendererMixin"],
             "injectors": { "defaultRequire": 1 }
           }
           SANTA_EOF
