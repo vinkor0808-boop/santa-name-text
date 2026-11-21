@@ -418,9 +418,10 @@ jobs:
           import de.santa.santanametext.NameBuilder;
           import de.santa.santanametext.SantaConfig;
           import net.minecraft.client.MinecraftClient;
-          import net.minecraft.client.network.AbstractClientPlayerEntity;
           import net.minecraft.client.render.entity.PlayerEntityRenderer;
           import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
+          import net.minecraft.entity.Entity;
+          import net.minecraft.entity.PlayerLikeEntity;
           import org.spongepowered.asm.mixin.Mixin;
           import org.spongepowered.asm.mixin.injection.At;
           import org.spongepowered.asm.mixin.injection.Inject;
@@ -428,12 +429,14 @@ jobs:
 
           @Mixin(PlayerEntityRenderer.class)
           public class PlayerRendererMixin {
-              @Inject(method = "updateRenderState(Lnet/minecraft/client/network/AbstractClientPlayerEntity;Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;F)V",
+              // In 1.21.11 ist der erste Parameter (nach Typ-Loeschung) PlayerLikeEntity.
+              @Inject(method = "updateRenderState(Lnet/minecraft/entity/PlayerLikeEntity;Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;F)V",
                       at = @At("TAIL"))
-              private void santa$name(AbstractClientPlayerEntity player, PlayerEntityRenderState state, float tickDelta, CallbackInfo ci) {
-                  if (player != MinecraftClient.getInstance().player || !SantaConfig.get().enabled) return;
+              private void santa$name(PlayerLikeEntity player, PlayerEntityRenderState state, float tickDelta, CallbackInfo ci) {
+                  Object self = player;
+                  if (self != (Object) MinecraftClient.getInstance().player || !SantaConfig.get().enabled) return;
                   NameBuilder.localState = state;
-                  state.displayName = NameBuilder.main(player.getName().getString());
+                  state.displayName = NameBuilder.main(((Entity) self).getName().getString());
                   if (state.nameLabelPos != null) state.nameLabelPos = state.nameLabelPos.add(0, NameBuilder.bounce(), 0);
               }
           }
@@ -572,6 +575,10 @@ jobs:
       - name: Mod bauen
         working-directory: work
         run: gradle build --no-daemon
+      - name: JAR pruefen
+        run: |
+          unzip -l work/build/libs/santanametext-1.0.0.jar
+          unzip -p work/build/libs/santanametext-1.0.0.jar de/santa/santanametext/mixin/PlayerRendererMixin.class | strings | grep -i -E "updateRenderState|method_|PlayerLike|class_" || true
       - uses: actions/upload-artifact@v4
         with:
           name: santanametext-jar
