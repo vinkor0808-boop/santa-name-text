@@ -36,6 +36,7 @@ jobs:
 
           tasks.withType(JavaCompile).configureEach {
               it.options.release = 21
+              it.options.encoding = 'UTF-8'
           }
 
           java {
@@ -77,12 +78,179 @@ jobs:
           package de.santa.santanametext;
 
           public enum Effect {
-              SOLID("Einfarbig"), RAINBOW("Regenbogen"), GRADIENT("Verlauf"), METALLIC("Metallic"),
-              FIRE("Feuer"), PULSE("Pulsieren"), GLITTER("Glitzer");
+              SOLID("Einfarbig"), RAINBOW("Regenbogen"), GRADIENT("Verlauf A-B"), WAVE("Welle A-B"),
+              METALLIC("Metallic"), FIRE("Feuer"), ICE("Eis"), PULSE("Pulsieren"), GLITTER("Glitzer");
 
               public final String label;
               Effect(String label) { this.label = label; }
               public Effect next() { return values()[(ordinal() + 1) % values().length]; }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/FontStyle.java)"
+          cat > src/main/java/de/santa/santanametext/FontStyle.java <<'SANTA_EOF'
+          package de.santa.santanametext;
+
+          import java.util.function.UnaryOperator;
+
+          /** 30 Schrift-Stile. fontId != null: Minecraft-eigene Schriftart. */
+          public enum FontStyle {
+              NORMAL("Normal", s -> s, null),
+              BOLD("Fett", Glyphs::bold, null),
+              ITALIC("Kursiv", Glyphs::italic, null),
+              BOLD_ITALIC("Fett Kursiv", Glyphs::boldItalic, null),
+              SCRIPT("Schreibschrift", Glyphs::script, null),
+              BOLD_SCRIPT("Schreibschrift fett", Glyphs::boldScript, null),
+              FRAKTUR("Fraktur", Glyphs::fraktur, null),
+              BOLD_FRAKTUR("Fraktur fett", Glyphs::boldFraktur, null),
+              DOUBLE("Doppelstrich", Glyphs::doubleStruck, null),
+              SANS("Sans", Glyphs::sans, null),
+              SANS_BOLD("Sans fett", Glyphs::sansBold, null),
+              SANS_ITALIC("Sans kursiv", Glyphs::sansItalic, null),
+              SANS_BOLD_ITALIC("Sans fett kursiv", Glyphs::sansBoldItalic, null),
+              MONO("Monospace", Glyphs::mono, null),
+              FULLWIDTH("Breit", Glyphs::fullwidth, null),
+              SMALL_CAPS("Kapitaelchen", Glyphs::smallCaps, null),
+              CIRCLED("Kreise", Glyphs::circled, null),
+              CIRCLED_NEG("Kreise voll", s -> Glyphs.letters(s, 0x1F150), null),
+              SQUARED("Quadrate", s -> Glyphs.letters(s, 0x1F130), null),
+              SQUARED_NEG("Quadrate voll", s -> Glyphs.letters(s, 0x1F170), null),
+              SUPER("Hochgestellt", Glyphs::superscript, null),
+              UPSIDE("Kopfstand", Glyphs::upsideDown, null),
+              SPACED("Gesperrt", s -> Glyphs.join(s, " "), null),
+              DOTTED("Punktiert", s -> Glyphs.join(s, "·"), null),
+              BOLD_SPACED("Fett gesperrt", s -> Glyphs.join(Glyphs.bold(s), " "), null),
+              SCRIPT_SPACED("Schreibschrift gesperrt", s -> Glyphs.join(Glyphs.script(s), " "), null),
+              SMALL_CAPS_SPACED("Kapitaelchen gesperrt", s -> Glyphs.join(Glyphs.smallCaps(s), " "), null),
+              GALACTIC("Galaktisch", s -> s, "alt"),
+              ILLAGER("Illager", s -> s, "illageralt"),
+              UNIFORM("Uniform", s -> s, "uniform");
+
+              public final String label;
+              public final String fontId;
+              private final UnaryOperator<String> fn;
+
+              FontStyle(String label, UnaryOperator<String> fn, String fontId) {
+                  this.label = label;
+                  this.fn = fn;
+                  this.fontId = fontId;
+              }
+
+              public String apply(String s) { return fn.apply(s); }
+          }
+          SANTA_EOF
+          mkdir -p "$(dirname src/main/java/de/santa/santanametext/Glyphs.java)"
+          cat > src/main/java/de/santa/santanametext/Glyphs.java <<'SANTA_EOF'
+          package de.santa.santanametext;
+
+          import java.util.Map;
+          import java.util.function.IntUnaryOperator;
+
+          /** Unicode-Umwandlungen: aus normalem Text wird z.B. fette, kursive oder verschnoerkelte Schrift. */
+          final class Glyphs {
+              private Glyphs() {}
+
+              static final Map<Character, Integer> ITALIC_EX = Map.of('h', 0x210E);
+              static final Map<Character, Integer> SCRIPT_EX = Map.ofEntries(
+                      Map.entry('B', 0x212C), Map.entry('E', 0x2130), Map.entry('F', 0x2131), Map.entry('H', 0x210B),
+                      Map.entry('I', 0x2110), Map.entry('L', 0x2112), Map.entry('M', 0x2133), Map.entry('R', 0x211B),
+                      Map.entry('e', 0x212F), Map.entry('g', 0x210A), Map.entry('o', 0x2134));
+              static final Map<Character, Integer> FRAKTUR_EX = Map.of(
+                      'C', 0x212D, 'H', 0x210C, 'I', 0x2111, 'R', 0x211C, 'Z', 0x2128);
+              static final Map<Character, Integer> DOUBLE_EX = Map.of(
+                      'C', 0x2102, 'H', 0x210D, 'N', 0x2115, 'P', 0x2119, 'Q', 0x211A, 'R', 0x211D, 'Z', 0x2124);
+
+              static final String SMALL_CAPS = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ";
+              static final String SUPER = "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻ";
+              static final String UPSIDE = "ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz";
+
+              static String map(String s, IntUnaryOperator f) {
+                  StringBuilder sb = new StringBuilder();
+                  s.codePoints().forEach(cp -> sb.appendCodePoint(f.applyAsInt(cp)));
+                  return sb.toString();
+              }
+
+              static int letter(int cp) {
+                  if (cp >= 'A' && cp <= 'Z') return cp - 'A';
+                  if (cp >= 'a' && cp <= 'z') return cp - 'a';
+                  return -1;
+              }
+
+              /** Mathematische Alphabete (fett, kursiv, Schreibschrift ...). digit < 0: Ziffern bleiben. */
+              static String math(String s, int upper, int lower, int digit, Map<Character, Integer> ex) {
+                  return map(s, cp -> {
+                      if (ex != null && cp < 128) {
+                          Integer e = ex.get((char) cp);
+                          if (e != null) return e;
+                      }
+                      if (cp >= 'A' && cp <= 'Z') return upper + (cp - 'A');
+                      if (cp >= 'a' && cp <= 'z') return lower + (cp - 'a');
+                      if (digit >= 0 && cp >= '0' && cp <= '9') return digit + (cp - '0');
+                      return cp;
+                  });
+              }
+
+              static String bold(String s)         { return math(s, 0x1D400, 0x1D41A, 0x1D7CE, null); }
+              static String italic(String s)       { return math(s, 0x1D434, 0x1D44E, -1, ITALIC_EX); }
+              static String boldItalic(String s)   { return math(s, 0x1D468, 0x1D482, -1, null); }
+              static String script(String s)       { return math(s, 0x1D49C, 0x1D4B6, -1, SCRIPT_EX); }
+              static String boldScript(String s)   { return math(s, 0x1D4D0, 0x1D4EA, -1, null); }
+              static String fraktur(String s)      { return math(s, 0x1D504, 0x1D51E, -1, FRAKTUR_EX); }
+              static String boldFraktur(String s)  { return math(s, 0x1D56C, 0x1D586, -1, null); }
+              static String doubleStruck(String s) { return math(s, 0x1D538, 0x1D552, 0x1D7D8, DOUBLE_EX); }
+              static String sans(String s)         { return math(s, 0x1D5A0, 0x1D5BA, 0x1D7E2, null); }
+              static String sansBold(String s)     { return math(s, 0x1D5D4, 0x1D5EE, 0x1D7EC, null); }
+              static String sansItalic(String s)   { return math(s, 0x1D608, 0x1D622, -1, null); }
+              static String sansBoldItalic(String s) { return math(s, 0x1D63C, 0x1D656, -1, null); }
+              static String mono(String s)         { return math(s, 0x1D670, 0x1D68A, 0x1D7F6, null); }
+              static String fullwidth(String s)    { return math(s, 0xFF21, 0xFF41, 0xFF10, null); }
+
+              static String smallCaps(String s) {
+                  return map(s, cp -> { int l = letter(cp); return l >= 0 ? SMALL_CAPS.charAt(l) : cp; });
+              }
+
+              static String superscript(String s) {
+                  return map(s, cp -> {
+                      int l = letter(cp);
+                      if (l >= 0) return SUPER.charAt(l);
+                      if (cp >= '0' && cp <= '9') return "⁰¹²³⁴⁵⁶⁷⁸⁹".charAt(cp - '0');
+                      return cp;
+                  });
+              }
+
+              static String upsideDown(String s) {
+                  int[] cps = s.codePoints().toArray();
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = cps.length - 1; i >= 0; i--) {
+                      int l = letter(cps[i]);
+                      sb.appendCodePoint(l >= 0 ? UPSIDE.charAt(l) : cps[i]);
+                  }
+                  return sb.toString();
+              }
+
+              static String circled(String s) {
+                  return map(s, cp -> {
+                      if (cp >= 'A' && cp <= 'Z') return 0x24B6 + (cp - 'A');
+                      if (cp >= 'a' && cp <= 'z') return 0x24D0 + (cp - 'a');
+                      if (cp == '0') return 0x24EA;
+                      if (cp >= '1' && cp <= '9') return 0x2460 + (cp - '1');
+                      return cp;
+                  });
+              }
+
+              /** Nur Buchstaben, Gross- und Kleinbuchstaben werden gleich behandelt. */
+              static String letters(String s, int base) {
+                  return map(s, cp -> { int l = letter(cp); return l >= 0 ? base + l : cp; });
+              }
+
+              static String join(String s, String sep) {
+                  int[] cps = s.codePoints().toArray();
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < cps.length; i++) {
+                      if (i > 0) sb.append(sep);
+                      sb.appendCodePoint(cps[i]);
+                  }
+                  return sb.toString();
+              }
           }
           SANTA_EOF
           mkdir -p "$(dirname src/main/java/de/santa/santanametext/NameBuilder.java)"
@@ -98,79 +266,127 @@ jobs:
           import net.minecraft.util.Util;
           import net.minecraft.util.math.MathHelper;
 
+          import java.util.ArrayList;
+          import java.util.List;
+
           public final class NameBuilder {
               private NameBuilder() {}
 
               /** Render-State des eigenen Spielers (wird vom Mixin gesetzt). */
               public static EntityRenderState localState;
 
-              private static final StyleSpriteSource LOGO_FONT =
-                      new StyleSpriteSource.Font(Identifier.of("santanametext", "logos"));
-
               public static double bounce() {
                   return SantaConfig.get().bounce ? Math.abs(Math.sin(Util.getMeasuringTimeMs() / 260.0)) * 0.12 : 0;
               }
 
-              /** Logos + Prefix + Name */
-              public static Text main(String playerName) {
+              /** Prefix | Name (+ Zusaetze anderer Mods, z.B. Tiers, ganz rechts). */
+              public static Text main(String playerName, Text original) {
                   SantaConfig c = SantaConfig.get();
                   MutableText out = Text.empty();
-                  for (int idx : c.logos) {
-                      if (idx < 0 || idx > 7) continue;
-                      out.append(Text.literal(String.valueOf((char) (0xE000 + idx)))
-                              .setStyle(Style.EMPTY.withFont(LOGO_FONT).withColor(0xFFFFFF)));
-                      out.append(Text.literal(" "));
+                  if (!c.prefix.text.isBlank()) {
+                      out.append(styled(c.prefix, c.prefix.text));
+                      String sep = c.separator.isBlank() ? " " : " " + c.separator.trim() + " ";
+                      out.append(Text.literal(sep).setStyle(Style.EMPTY.withColor(c.sepColor)));
                   }
-                  if (!c.prefix.isBlank()) {
-                      out.append(styled(c.prefix, c.prefixEffect, c));
-                      out.append(Text.literal(" "));
-                  }
-                  out.append(styled(playerName, c.nameEffect, c));
+                  out.append(styled(c.name, playerName));
+                  if (c.tiersRight && original != null) appendExtras(out, original, playerName);
                   return out;
               }
 
-              public static Text line(String s, Effect e) { return styled(s, e, SantaConfig.get()); }
+              /** Alles aus dem urspruenglichen Anzeigenamen, was nicht der Spielername ist, kommt ganz nach rechts. */
+              private static void appendExtras(MutableText out, Text original, String playerName) {
+                  List<Integer> cps = new ArrayList<>();
+                  List<Style> styles = new ArrayList<>();
+                  original.asOrderedText().accept((index, style, cp) -> {
+                      cps.add(cp);
+                      styles.add(style);
+                      return true;
+                  });
+                  int[] nameCps = playerName.codePoints().toArray();
+                  int at = -1;
+                  for (int i = 0; i + nameCps.length <= cps.size() && at < 0; i++) {
+                      boolean ok = true;
+                      for (int j = 0; j < nameCps.length; j++) {
+                          if (cps.get(i + j) != nameCps[j]) { ok = false; break; }
+                      }
+                      if (ok) at = i;
+                  }
+                  if (at < 0) return;
 
-              public static Text styled(String s, Effect e, SantaConfig c) {
+                  MutableText extras = Text.empty();
+                  boolean any = false;
+                  for (int i = 0; i < cps.size(); i++) {
+                      if (i >= at && i < at + nameCps.length) continue;
+                      int cp = cps.get(i);
+                      if (!any && Character.isWhitespace(cp)) continue;
+                      extras.append(Text.literal(new String(Character.toChars(cp))).setStyle(styles.get(i)));
+                      if (!Character.isWhitespace(cp)) any = true;
+                  }
+                  if (any) {
+                      out.append(Text.literal(" "));
+                      out.append(extras);
+                  }
+              }
+
+              public static Text line(SantaConfig.TagElement e) { return styled(e, e.text); }
+
+              public static Text sample(FontStyle fs, boolean selected) {
+                  Style st = Style.EMPTY.withColor(selected ? 0xFFD60A : 0xFFFFFF);
+                  if (fs.fontId != null) st = st.withFont(new StyleSpriteSource.Font(Identifier.of("minecraft", fs.fontId)));
+                  return Text.literal(fs.apply("Ab")).setStyle(st);
+              }
+
+              public static Text styled(SantaConfig.TagElement e, String raw) {
                   MutableText out = Text.empty();
-                  long t = Util.getMeasuringTimeMs();
-                  int i = 0;
-                  for (int cp : s.codePoints().toArray()) {
-                      Style st = Style.EMPTY.withColor(color(e, i, t, c)).withBold(c.bold).withItalic(c.italic);
-                      out.append(Text.literal(new String(Character.toChars(cp))).setStyle(st));
-                      i++;
+                  String t = e.font.apply(raw);
+                  Style base = Style.EMPTY.withBold(e.bold).withItalic(e.italic)
+                          .withUnderline(e.underline).withStrikethrough(e.strike);
+                  if (e.font.fontId != null) {
+                      base = base.withFont(new StyleSpriteSource.Font(Identifier.of("minecraft", e.font.fontId)));
+                  }
+                  int[] cps = t.codePoints().toArray();
+                  long time = Util.getMeasuringTimeMs();
+                  for (int i = 0; i < cps.length; i++) {
+                      int rgb = color(e.effect, i, cps.length, time, e.colorA, e.colorB);
+                      out.append(Text.literal(new String(Character.toChars(cps[i]))).setStyle(base.withColor(rgb)));
                   }
                   return out;
               }
 
-              private static int color(Effect e, int i, long t, SantaConfig c) {
+              private static int color(Effect e, int i, int n, long t, int a, int b) {
                   switch (e) {
                       case RAINBOW: {
                           float h = ((t / 1500f) + i * 0.07f) % 1f;
                           return MathHelper.hsvToRgb(h, 0.85f, 1f);
                       }
-                      case GRADIENT: {
-                          float p = (float) ((Math.sin(t / 700.0 + i * 0.35) + 1) / 2);
-                          return lerp(c.colorA, c.colorB, p);
+                      case GRADIENT:
+                          return lerp(a, b, n > 1 ? i / (float) (n - 1) : 0f);
+                      case WAVE: {
+                          float p = (float) ((Math.sin(t / 500.0 - i * 0.45) + 1) / 2);
+                          return lerp(a, b, p);
                       }
                       case METALLIC: {
                           double p = ((t / 90.0) - i * 1.2) % 12;
                           if (p < 0) p += 12;
                           float s = p < 3 ? (float) Math.sin(p / 3 * Math.PI) : 0f;
-                          return lerp(0x6E757C, 0xF5F7FA, s);
+                          return lerp(a, 0xFFFFFF, s * 0.9f);
                       }
                       case FIRE: {
-                          float n = (float) (Math.sin(t / 130.0 + i * 1.7) * 0.5 + 0.5);
-                          return lerp(0xFF3B00, 0xFFD000, n);
+                          float f = (float) (Math.sin(t / 130.0 + i * 1.7) * 0.5 + 0.5);
+                          return lerp(0xFF3B00, 0xFFD000, f);
+                      }
+                      case ICE: {
+                          float f = (float) (Math.sin(t / 400.0 + i * 0.6) * 0.5 + 0.5);
+                          return lerp(0x3FB8FF, 0xE8FBFF, f);
                       }
                       case PULSE: {
                           float f = (float) (0.65 + 0.35 * Math.sin(t / 300.0));
-                          return lerp(0x000000, c.colorA, f);
+                          return lerp(0x000000, a, f);
                       }
                       case GLITTER:
-                          return ((t / 120 + i * 7) % 9 == 0) ? 0xFFFFFF : c.colorA;
+                          return ((t / 120 + i * 7) % 9 == 0) ? 0xFFFFFF : a;
                       default:
-                          return c.colorA;
+                          return a;
                   }
               }
 
@@ -194,22 +410,54 @@ jobs:
           import java.nio.file.Path;
 
           public class SantaConfig {
-              public boolean enabled = true, bounce = false, bold = false, italic = false;
-              public String prefix = "SANTA", topLine = "tiktok: @santa", bottomLine = "";
-              public Effect prefixEffect = Effect.RAINBOW, nameEffect = Effect.METALLIC,
-                            topEffect = Effect.GRADIENT, bottomEffect = Effect.SOLID;
-              public int colorA = 0xFF3355, colorB = 0xFFD000;
-              /** Logo-Slots: -1 = leer, 0..7 = logo1..logo8.png */
-              public int[] logos = {0, -1, -1};
+              public boolean enabled = true, bounce = false, tiersRight = true;
+              public String separator = "|";
+              public int sepColor = 0x9AA0A6;
+
+              public TagElement prefix = new TagElement("SANTA", FontStyle.BOLD, Effect.RAINBOW, 0xFF3355, 0xFFD000);
+              public TagElement name = new TagElement("", FontStyle.NORMAL, Effect.METALLIC, 0x7A838C, 0xFFFFFF);
+              public TagElement top = new TagElement("tiktok: @santa", FontStyle.NORMAL, Effect.GRADIENT, 0xFF3355, 0xFFD000);
+              public TagElement bottom = new TagElement("", FontStyle.NORMAL, Effect.SOLID, 0xFFFFFF, 0xFFD000);
+
+              /** Ein Baustein des Nametags (Prefix, Name, Zeile oben, Zeile unten). */
+              public static class TagElement {
+                  public String text = "";
+                  public FontStyle font = FontStyle.NORMAL;
+                  public Effect effect = Effect.SOLID;
+                  public int colorA = 0xFFFFFF, colorB = 0xFFD000;
+                  public boolean bold, italic, underline, strike;
+
+                  public TagElement() {}
+
+                  public TagElement(String text, FontStyle font, Effect effect, int a, int b) {
+                      this.text = text; this.font = font; this.effect = effect; this.colorA = a; this.colorB = b;
+                  }
+
+                  void fix() {
+                      if (text == null) text = "";
+                      if (font == null) font = FontStyle.NORMAL;
+                      if (effect == null) effect = Effect.SOLID;
+                  }
+              }
+
+              private void fix() {
+                  if (separator == null) separator = "";
+                  if (prefix == null) prefix = new TagElement("SANTA", FontStyle.BOLD, Effect.RAINBOW, 0xFF3355, 0xFFD000);
+                  if (name == null) name = new TagElement("", FontStyle.NORMAL, Effect.METALLIC, 0x7A838C, 0xFFFFFF);
+                  if (top == null) top = new TagElement("", FontStyle.NORMAL, Effect.GRADIENT, 0xFF3355, 0xFFD000);
+                  if (bottom == null) bottom = new TagElement("", FontStyle.NORMAL, Effect.SOLID, 0xFFFFFF, 0xFFD000);
+                  prefix.fix(); name.fix(); top.fix(); bottom.fix();
+              }
 
               private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-              private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("santanametext.json");
+              private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("santanametext_v2.json");
               private static SantaConfig inst;
 
               public static SantaConfig get() {
                   if (inst == null) {
                       try { inst = GSON.fromJson(Files.readString(FILE), SantaConfig.class); } catch (Exception ignored) {}
                       if (inst == null) inst = new SantaConfig();
+                      inst.fix();
                   }
                   return inst;
               }
@@ -253,97 +501,214 @@ jobs:
           import net.minecraft.client.gui.screen.Screen;
           import net.minecraft.client.gui.widget.ButtonWidget;
           import net.minecraft.client.gui.widget.TextFieldWidget;
+          import net.minecraft.text.Style;
           import net.minecraft.text.Text;
 
           import java.util.function.Consumer;
           import java.util.function.Supplier;
 
+          /** Glas-Menue: Tabs (Prefix / Name / Oben / Unten), 30 Schriften, Effekte, Farben, Live-Vorschau. */
           public class SantaScreen extends Screen {
+              private static final int[] SWATCHES = {
+                      0xFF3B30, 0xFF9500, 0xFFD60A, 0x9BEA2C, 0x30D158, 0x00C7BE,
+                      0x32D4FF, 0x0A84FF, 0x5E5CE6, 0xBF5AF2, 0xFF2D92, 0xFFFFFF};
+              private static final String[] TAB_NAMES = {"Prefix", "Name", "Oben", "Unten"};
+
               private final Screen parent;
               private final SantaConfig c = SantaConfig.get();
+              private int tab = 1;
+              private int px, py, pw, ph;
+              private TextFieldWidget fieldA, fieldB;
 
               public SantaScreen(Screen parent) {
                   super(Text.literal("Santa Name Text"));
                   this.parent = parent;
               }
 
+              private SantaConfig.TagElement cur() {
+                  switch (tab) {
+                      case 0: return c.prefix;
+                      case 1: return c.name;
+                      case 2: return c.top;
+                      default: return c.bottom;
+                  }
+              }
+
               @Override
               protected void init() {
-                  int L = width / 2 - 155, R = width / 2 + 5, W = 150, y = 34, S = 24;
+                  pw = Math.min(width - 10, 420);
+                  ph = Math.min(height - 10, 252);
+                  px = (width - pw) / 2;
+                  py = (height - ph) / 2;
+                  int inner = pw - 20;
+                  int colW = (inner - 10) / 2;
+                  int L = px + 10;
+                  int R = L + colW + 10;
+                  SantaConfig.TagElement e = cur();
 
-                  toggle(L, y, W, "Aktiv", () -> c.enabled, v -> c.enabled = v);
-                  toggle(R, y, W, "Bounce", () -> c.bounce, v -> c.bounce = v);
-                  y += S;
-                  field(L, y, W, "Prefix", c.prefix, s -> c.prefix = s);
-                  effect(R, y, W, "Prefix", () -> c.prefixEffect, v -> c.prefixEffect = v);
-                  y += S;
-                  effect(L, y, W, "Name", () -> c.nameEffect, v -> c.nameEffect = v);
-                  field(R, y, W, "Farbe A (hex)", String.format("%06X", c.colorA), s -> c.colorA = hex(s, c.colorA));
-                  y += S;
-                  toggle(L, y, 73, "Fett", () -> c.bold, v -> c.bold = v);
-                  toggle(L + 77, y, 73, "Kursiv", () -> c.italic, v -> c.italic = v);
-                  field(R, y, W, "Farbe B (hex)", String.format("%06X", c.colorB), s -> c.colorB = hex(s, c.colorB));
-                  y += S;
-                  field(L, y, W, "Zeile oben", c.topLine, s -> c.topLine = s);
-                  effect(R, y, W, "Oben", () -> c.topEffect, v -> c.topEffect = v);
-                  y += S;
-                  field(L, y, W, "Zeile unten", c.bottomLine, s -> c.bottomLine = s);
-                  effect(R, y, W, "Unten", () -> c.bottomEffect, v -> c.bottomEffect = v);
-                  y += S;
-                  for (int i = 0; i < 3; i++) logoButton(L + i * 104, y, 98, i);
-                  y += S + 4;
+                  // Tabs
+                  int y = py + 70;
+                  int tw = (inner - 12) / 4;
+                  for (int i = 0; i < 4; i++) {
+                      final int idx = i;
+                      addDrawableChild(ButtonWidget.builder(Text.literal((tab == idx ? "> " : "") + TAB_NAMES[idx]), b -> {
+                          tab = idx;
+                          clearAndInit();
+                      }).dimensions(L + i * (tw + 4), y, tw, 18).build());
+                  }
+
+                  // Text (nicht beim Namen)
+                  y += 24;
+                  if (tab == 1) {
+                      ButtonWidget b = ButtonWidget.builder(Text.literal("(dein Spielername)"), x -> {})
+                              .dimensions(L, y, colW, 18).build();
+                      b.active = false;
+                      addDrawableChild(b);
+                  } else {
+                      field(L, y, colW, tab == 0 ? "Prefix-Text" : "Zeile", e.text, 40, s -> e.text = s);
+                  }
+
+                  // Effekt
+                  y += 22;
+                  addDrawableChild(ButtonWidget.builder(Text.literal("Effekt: " + e.effect.label), b -> {
+                      e.effect = e.effect.next();
+                      b.setMessage(Text.literal("Effekt: " + e.effect.label));
+                  }).dimensions(L, y, colW, 18).build());
+
+                  // Farben (Hex)
+                  y += 22;
+                  int hw = (colW - 4) / 2;
+                  fieldA = field(L, y, hw, "Farbe A", hex(e.colorA), 7, s -> e.colorA = parseHex(s, e.colorA));
+                  fieldB = field(L + hw + 4, y, hw, "Farbe B", hex(e.colorB), 7, s -> e.colorB = parseHex(s, e.colorB));
+
+                  // Farbfelder: Reihe A, Reihe B
+                  y += 22;
+                  swatches(L, y, colW, col -> { e.colorA = col; fieldA.setText(hex(col)); });
+                  y += 16;
+                  swatches(L, y, colW, col -> { e.colorB = col; fieldB.setText(hex(col)); });
+
+                  // Fett / Kursiv / Unterstrichen / Durchgestrichen
+                  y += 18;
+                  int sw = (colW - 9) / 4;
+                  styleToggle(L, y, sw, "B", Style.EMPTY.withBold(true), () -> e.bold, v -> e.bold = v);
+                  styleToggle(L + (sw + 3), y, sw, "I", Style.EMPTY.withItalic(true), () -> e.italic, v -> e.italic = v);
+                  styleToggle(L + 2 * (sw + 3), y, sw, "U", Style.EMPTY.withUnderline(true), () -> e.underline, v -> e.underline = v);
+                  styleToggle(L + 3 * (sw + 3), y, sw, "S", Style.EMPTY.withStrikethrough(true), () -> e.strike, v -> e.strike = v);
+
+                  // Schrift-Raster (rechts): 5 Spalten x 6 Reihen = 30 Stile
+                  FontStyle[] fonts = FontStyle.values();
+                  int gy = py + 94;
+                  int bw = (colW - 8) / 5;
+                  for (int i = 0; i < fonts.length; i++) {
+                      final FontStyle fs = fonts[i];
+                      int gx = R + (i % 5) * (bw + 2);
+                      int gyy = gy + (i / 5) * 18;
+                      addDrawableChild(ButtonWidget.builder(NameBuilder.sample(fs, fs == e.font), b -> {
+                          e.font = fs;
+                          clearAndInit();
+                      }).dimensions(gx, gyy, bw, 16).build());
+                  }
+
+                  // Unten: globale Schalter
+                  int by = py + ph - 26;
+                  int aw = (inner - 4 * 6 - 60 - 66) / 3;
+                  int bx = L;
+                  toggle(bx, by, aw, "Aktiv", () -> c.enabled, v -> c.enabled = v);
+                  bx += aw + 6;
+                  toggle(bx, by, aw, "Bounce", () -> c.bounce, v -> c.bounce = v);
+                  bx += aw + 6;
+                  toggle(bx, by, aw, "Tiers rechts", () -> c.tiersRight, v -> c.tiersRight = v);
+                  bx += aw + 6;
+                  field(bx, by, 60, "Trenner", c.separator, 3, s -> c.separator = s);
+                  bx += 66;
                   addDrawableChild(ButtonWidget.builder(Text.literal("Fertig"), b -> close())
-                          .dimensions(width / 2 - 75, y, 150, 20).build());
+                          .dimensions(bx, by, 60, 18).build());
               }
 
-              private void toggle(int x, int y, int w, String name, Supplier<Boolean> get, Consumer<Boolean> set) {
-                  addDrawableChild(ButtonWidget.builder(Text.literal(name + ": " + (get.get() ? "An" : "Aus")), b -> {
-                      set.accept(!get.get());
-                      b.setMessage(Text.literal(name + ": " + (get.get() ? "An" : "Aus")));
-                  }).dimensions(x, y, w, 20).build());
-              }
-
-              private void effect(int x, int y, int w, String name, Supplier<Effect> get, Consumer<Effect> set) {
-                  addDrawableChild(ButtonWidget.builder(Text.literal(name + ": " + get.get().label), b -> {
-                      set.accept(get.get().next());
-                      b.setMessage(Text.literal(name + ": " + get.get().label));
-                  }).dimensions(x, y, w, 20).build());
-              }
-
-              private void logoButton(int x, int y, int w, int slot) {
-                  addDrawableChild(ButtonWidget.builder(logoLabel(slot), b -> {
-                      int v = c.logos[slot] + 1;
-                      c.logos[slot] = v > 7 ? -1 : v;
-                      b.setMessage(logoLabel(slot));
-                  }).dimensions(x, y, w, 20).build());
-              }
-
-              private Text logoLabel(int slot) {
-                  int v = c.logos[slot];
-                  return Text.literal("Logo " + (slot + 1) + ": " + (v < 0 ? "-" : String.valueOf(v + 1)));
-              }
-
-              private void field(int x, int y, int w, String hint, String value, Consumer<String> set) {
-                  TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 20, Text.literal(hint));
-                  f.setMaxLength(48);
+              private TextFieldWidget field(int x, int y, int w, String hint, String value, int max, Consumer<String> set) {
+                  TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 18, Text.literal(hint));
+                  f.setMaxLength(max);
                   f.setPlaceholder(Text.literal(hint));
                   f.setText(value);
                   f.setChangedListener(set);
                   addDrawableChild(f);
+                  return f;
               }
 
-              private static int hex(String s, int fallback) {
-                  try { return Integer.parseInt(s.replace("#", "").trim(), 16) & 0xFFFFFF; } catch (Exception e) { return fallback; }
+              private void toggle(int x, int y, int w, String name, Supplier<Boolean> get, Consumer<Boolean> set) {
+                  addDrawableChild(ButtonWidget.builder(toggleLabel(name, get.get()), b -> {
+                      set.accept(!get.get());
+                      b.setMessage(toggleLabel(name, get.get()));
+                  }).dimensions(x, y, w, 18).build());
+              }
+
+              private static Text toggleLabel(String name, boolean on) {
+                  return Text.literal(name + ": " + (on ? "An" : "Aus"))
+                          .setStyle(Style.EMPTY.withColor(on ? 0x7CFC9A : 0xFFFFFF));
+              }
+
+              private void styleToggle(int x, int y, int w, String letter, Style fmt, Supplier<Boolean> get, Consumer<Boolean> set) {
+                  addDrawableChild(ButtonWidget.builder(styleLabel(letter, fmt, get.get()), b -> {
+                      set.accept(!get.get());
+                      b.setMessage(styleLabel(letter, fmt, get.get()));
+                  }).dimensions(x, y, w, 18).build());
+              }
+
+              private static Text styleLabel(String letter, Style fmt, boolean on) {
+                  return Text.literal(letter).setStyle(fmt.withColor(on ? 0xFFD60A : 0xFFFFFF));
+              }
+
+              private void swatches(int x, int y, int totalW, Consumer<Integer> pick) {
+                  int n = SWATCHES.length;
+                  int w = (totalW - (n - 1) * 2) / n;
+                  for (int i = 0; i < n; i++) {
+                      final int col = SWATCHES[i];
+                      addDrawableChild(ButtonWidget.builder(
+                              Text.literal("█").setStyle(Style.EMPTY.withColor(col)), b -> pick.accept(col))
+                              .dimensions(x + i * (w + 2), y, w, 14).build());
+                  }
+              }
+
+              private static String hex(int rgb) { return String.format("%06X", rgb & 0xFFFFFF); }
+
+              private static int parseHex(String s, int fallback) {
+                  try { return Integer.parseInt(s.replace("#", "").trim(), 16) & 0xFFFFFF; } catch (Exception ex) { return fallback; }
               }
 
               @Override
               public void render(DrawContext ctx, int mx, int my, float delta) {
+                  // Glas-Panel
+                  ctx.fill(px, py, px + pw, py + ph, 0xB0121A24);
+                  ctx.fillGradient(px, py, px + pw, py + 66, 0x38FFFFFF, 0x08FFFFFF);
+                  ctx.fill(px, py, px + pw, py + 1, 0x90FFFFFF);
+                  ctx.fill(px, py + ph - 1, px + pw, py + ph, 0x40FFFFFF);
+                  ctx.fill(px, py, px + 1, py + ph, 0x60FFFFFF);
+                  ctx.fill(px + pw - 1, py, px + pw, py + ph, 0x40FFFFFF);
+                  // Vorschau-Kasten
+                  ctx.fill(px + 10, py + 8, px + pw - 10, py + 62, 0x66000000);
+
                   super.render(ctx, mx, my, delta);
-                  ctx.drawCenteredTextWithShadow(textRenderer, title, width / 2, 8, 0xFFFFFFFF);
-                  // Live-Vorschau
+
+                  int cx = px + pw / 2;
                   MinecraftClient mc = MinecraftClient.getInstance();
                   String name = mc.player != null ? mc.player.getName().getString() : "DeinName";
-                  ctx.drawCenteredTextWithShadow(textRenderer, NameBuilder.main(name), width / 2, 20, 0xFFFFFFFF);
+                  ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("Santa Name Text  -  Vorschau"), cx, py + 11, 0xFFB0B8C0);
+                  int ly = py + 24;
+                  if (!c.top.text.isBlank()) {
+                      ctx.drawCenteredTextWithShadow(textRenderer, NameBuilder.line(c.top), cx, ly, 0xFFFFFFFF);
+                      ly += 12;
+                  }
+                  ctx.drawCenteredTextWithShadow(textRenderer, NameBuilder.main(name, null), cx, ly, 0xFFFFFFFF);
+                  ly += 12;
+                  if (!c.bottom.text.isBlank()) {
+                      ctx.drawCenteredTextWithShadow(textRenderer, NameBuilder.line(c.bottom), cx, ly, 0xFFFFFFFF);
+                  }
+
+                  FontStyle fs = cur().font;
+                  int colW = (pw - 20 - 10) / 2;
+                  int R = px + 10 + colW + 10;
+                  ctx.drawTextWithShadow(textRenderer, "Schrift: " + fs.label + " (" + (fs.ordinal() + 1) + "/" + FontStyle.values().length + ")",
+                          R, py + 94 + 6 * 18 + 2, 0xFFB0B8C0);
               }
 
               @Override
@@ -393,13 +758,13 @@ jobs:
                   Vec3d oldPos = state.nameLabelPos;
                   santa$busy = true;
                   try {
-                      if (!c.topLine.isBlank()) {
-                          state.displayName = NameBuilder.line(c.topLine, c.topEffect);
+                      if (!c.top.text.isBlank()) {
+                          state.displayName = NameBuilder.line(c.top);
                           state.nameLabelPos = oldPos.add(0, 0.27, 0);
                           renderLabelIfPresent(state, matrices, queue, camera);
                       }
-                      if (!c.bottomLine.isBlank()) {
-                          state.displayName = NameBuilder.line(c.bottomLine, c.bottomEffect);
+                      if (!c.bottom.text.isBlank()) {
+                          state.displayName = NameBuilder.line(c.bottom);
                           state.nameLabelPos = oldPos.add(0, -0.27, 0);
                           renderLabelIfPresent(state, matrices, queue, camera);
                       }
@@ -422,6 +787,7 @@ jobs:
           import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
           import net.minecraft.entity.Entity;
           import net.minecraft.entity.PlayerLikeEntity;
+          import net.minecraft.util.math.Vec3d;
           import org.spongepowered.asm.mixin.Mixin;
           import org.spongepowered.asm.mixin.injection.At;
           import org.spongepowered.asm.mixin.injection.Inject;
@@ -435,111 +801,19 @@ jobs:
               private void santa$name(PlayerLikeEntity player, PlayerEntityRenderState state, float tickDelta, CallbackInfo ci) {
                   Object self = player;
                   if (self != (Object) MinecraftClient.getInstance().player || !SantaConfig.get().enabled) return;
+                  Entity entity = (Entity) self;
                   NameBuilder.localState = state;
-                  state.displayName = NameBuilder.main(((Entity) self).getName().getString());
-                  if (state.nameLabelPos != null) state.nameLabelPos = state.nameLabelPos.add(0, NameBuilder.bounce(), 0);
+                  // Vanilla zeigt den eigenen Namen nie an (Label ist null) -> hier selbst setzen.
+                  state.displayName = NameBuilder.main(entity.getName().getString(), state.displayName);
+                  Vec3d pos = state.nameLabelPos != null ? state.nameLabelPos : new Vec3d(0, entity.getHeight(), 0);
+                  state.nameLabelPos = pos.add(0, NameBuilder.bounce(), 0);
               }
-          }
-          SANTA_EOF
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/font/logos.json)"
-          cat > src/main/resources/assets/santanametext/font/logos.json <<'SANTA_EOF'
-          {
-            "providers": [
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo1.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue000"
-                ]
-              },
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo2.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue001"
-                ]
-              },
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo3.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue002"
-                ]
-              },
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo4.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue003"
-                ]
-              },
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo5.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue004"
-                ]
-              },
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo6.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue005"
-                ]
-              },
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo7.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue006"
-                ]
-              },
-              {
-                "type": "bitmap",
-                "file": "santanametext:font/logos/logo8.png",
-                "ascent": 7,
-                "height": 8,
-                "chars": [
-                  "\ue007"
-                ]
-              }
-            ]
           }
           SANTA_EOF
           mkdir -p "$(dirname src/main/resources/assets/santanametext/lang/en_us.json)"
           cat > src/main/resources/assets/santanametext/lang/en_us.json <<'SANTA_EOF'
           { "key.santanametext.menu": "Open Santa Name Text menu" }
           SANTA_EOF
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo1.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGElEQVR4nGP4TwAwgIg7GjZY8dBSgA8AADW7wG2urDsuAAAAAElFTkSuQmCC' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo1.png
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo2.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVR4nGP4TwAwgAiNCux4aCnABwDrd83JVCcc3QAAAABJRU5ErkJggg==' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo2.png
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo3.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGElEQVR4nGP4TwAwgAiNE1FY8dBSgA8AANKHwdU1JR+OAAAAAElFTkSuQmCC' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo3.png
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo4.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAF0lEQVR4nGP4TwAwgMl9DNjx0FKABwAAXLjSAae/aKMAAAAASUVORK5CYII=' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo4.png
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo5.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAF0lEQVR4nGP4TwAwgIhVNtjx0FKADwAAFmXXof4SIiEAAAAASUVORK5CYII=' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo5.png
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo6.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAF0lEQVR4nGP4TwAwgIkTJ7DioaUAHwAA1gbLrYKtUQUAAAAASUVORK5CYII=' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo6.png
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo7.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVR4nGP4TwAwgMk8Bux4aCnAAwCJvsbBDYI4LAAAAABJRU5ErkJggg==' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo7.png
-          mkdir -p "$(dirname src/main/resources/assets/santanametext/textures/font/logos/logo8.png)"
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGElEQVR4nGP4TwAwgIhnz55hxUNLAT4AAA709HVS74fwAAAAAElFTkSuQmCC' | base64 -d > src/main/resources/assets/santanametext/textures/font/logos/logo8.png
           mkdir -p "$(dirname src/main/resources/fabric.mod.json)"
           cat > src/main/resources/fabric.mod.json <<'SANTA_EOF'
           {
