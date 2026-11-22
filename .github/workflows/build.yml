@@ -3,13 +3,113 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Projekt erzeugen
         run: |
           mkdir -p work && cd work
+          mkdir -p "$(dirname .gitignore)"
+          cat > .gitignore <<'SANTA_EOF'
+          build/
+          .gradle/
+          work/
+          *.class
+          .idea/
+          run/
+          SANTA_EOF
+          mkdir -p "$(dirname LICENSE)"
+          cat > LICENSE <<'SANTA_EOF'
+          MIT License
+
+          Copyright (c) 2026 Santa
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy
+          of this software and associated documentation files (the "Software"), to deal
+          in the Software without restriction, including without limitation the rights
+          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          copies of the Software, and to permit persons to whom the Software is
+          furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          SANTA_EOF
+          mkdir -p "$(dirname MODRINTH.md)"
+          cat > MODRINTH.md <<'SANTA_EOF'
+          # Modrinth publishing sheet (copy into the Modrinth project form)
+
+          **Name:** Santa Name Text
+          **Summary (max 256):** Client-side custom nametag: prefix, suffix, lines above/below, 20 text effects, 40 fonts, colour picker and a rounded glass menu.
+          **Categories:** Cosmetic, Utility
+          **Environment:** Client: required - Server: unsupported
+          **License:** MIT (open source)
+          **Loader:** Fabric - **Game version:** 1.21.11
+          **Dependencies:** Fabric API (required)
+          **Icon:** assets/santanametext/icon.png (in the repo)
+          **Source:** your GitHub repository URL
+
+          ## Description
+          Santa Name Text lets you design your own nametag, fully client-side.
+
+          - Prefix, name, suffix and a colourable separator
+          - Extra lines above and below your name
+          - 20 animated text effects with live previews
+          - 40 font styles, bold / italic / underline / strikethrough
+          - HSV colour picker, hex input, swatches, live preview
+          - Tier mods: show the tier left, right or hide it
+          - Rounded glass menu, open with Right Shift
+
+          Your own tag is only visible in third person (F5). Other players do not see it.
+
+          ## Version 1.0.0 changelog
+          - First release
+          SANTA_EOF
+          mkdir -p "$(dirname README.md)"
+          cat > README.md <<'SANTA_EOF'
+          # Santa Name Text
+
+          Client-side Fabric mod for Minecraft **1.21.11** (Fabric Loader >= 0.16, Fabric API, Java 21).
+          Open source, MIT license.
+
+          ## Features
+          - Own nametag: **prefix**, **name**, **suffix**, freely colourable **separator**
+          - Extra lines **above** and **below** the name
+          - 20 text effects (rainbow, gradient, metallic, shimmer, chromatic, fade, glowing, fire, ...), live animated previews
+          - 40 font styles (Unicode styles + Minecraft fonts), bold / italic / underline / strikethrough
+          - HSV colour picker, hex input, colour swatches, always-visible live preview
+          - Tier mods: tier can be shown **left**, **right** or hidden
+          - Rounded glass menu - open with **Right Shift** (rebindable in Controls)
+
+          Note: Minecraft hides your own nametag - you see it in third person (F5). Other players do not see it; it is purely client-side.
+
+          ## Deutsch
+          Eigener Nametag mit Prefix, Suffix, Trenner, Zeilen ueber/unter dem Namen, Effekten, 40 Schriften und Farbwaehler.
+          Menue: rechte Shift-Taste. Den eigenen Tag siehst du nur in der Third-Person-Ansicht (F5), andere sehen ihn nicht.
+
+          ## Build
+          ```
+          gradle build        # Java 21, Gradle 9.2.1
+          ```
+          Result: `build/libs/santanametext-<version>.jar` (use the one without `-sources`).
+          The included GitHub workflow builds the mod and uploads it as the artifact `santanametext-jar`.
+
+          ## Contributing
+          Issues and pull requests are welcome. The code lives in `src/main/java/de/santa/santanametext`:
+          `NameBuilder` (text/effects), `FontStyle`/`Glyphs` (fonts), `SantaScreen`/`Ui` (menu), `mixin/PlayerRendererMixin` (rendering).
+          SANTA_EOF
           mkdir -p "$(dirname build.gradle)"
           cat > build.gradle <<'SANTA_EOF'
           plugins {
@@ -291,27 +391,39 @@ jobs:
                   return SantaConfig.get().bounce ? Math.abs(Math.sin(Util.getMeasuringTimeMs() / 260.0)) * 0.12 : 0;
               }
 
-              /** Prefix | Name (+ Zusaetze anderer Mods, z.B. Tiers, ganz rechts). */
+              /** Tier-Zusatz (links/rechts) + Prefix | Name | Suffix, Trenner frei faerbbar. */
               public static Text main(String playerName, Text original) {
                   SantaConfig c = SantaConfig.get();
+                  Text extras = (original != null && c.tiersMode != 2) ? extras(original, playerName) : null;
                   MutableText out = Text.empty();
+                  if (extras != null && c.tiersMode == 1) {
+                      out.append(extras);
+                      out.append(sep(c));
+                  }
                   if (!c.prefix.text.isBlank()) {
                       out.append(styled(c.prefix, c.prefix.text));
-                      String sep = c.separator.isBlank() ? " " : " " + c.separator.trim() + " ";
-                      out.append(Text.literal(sep).setStyle(Style.EMPTY.withColor(c.sepColor)));
+                      out.append(sep(c));
                   }
                   out.append(styled(c.name, playerName));
                   if (!c.suffix.text.isBlank()) {
-                      String sep = c.separator.isBlank() ? " " : " " + c.separator.trim() + " ";
-                      out.append(Text.literal(sep).setStyle(Style.EMPTY.withColor(c.sepColor)));
+                      out.append(sep(c));
                       out.append(styled(c.suffix, c.suffix.text));
                   }
-                  if (c.tiersRight && original != null) appendExtras(out, original, playerName);
+                  if (extras != null && c.tiersMode == 0) {
+                      out.append(sep(c));
+                      out.append(extras);
+                  }
                   return out;
               }
 
-              /** Alles aus dem urspruenglichen Anzeigenamen, was nicht der Spielername ist, kommt ganz nach rechts. */
-              private static void appendExtras(MutableText out, Text original, String playerName) {
+              private static Text sep(SantaConfig c) {
+                  String t = c.sep.text == null ? "" : c.sep.text.trim();
+                  if (t.isEmpty()) return Text.literal(" ");
+                  return Text.empty().append(Text.literal(" ")).append(styled(c.sep, t)).append(Text.literal(" "));
+              }
+
+              /** Alles aus dem urspruenglichen Anzeigenamen, was nicht der Spielername ist (z.B. Tier). */
+              private static Text extras(Text original, String playerName) {
                   List<Integer> cps = new ArrayList<>();
                   List<Style> styles = new ArrayList<>();
                   original.asOrderedText().accept((index, style, cp) -> {
@@ -328,9 +440,11 @@ jobs:
                       }
                       if (ok) at = i;
                   }
-                  if (at < 0) return;
+                  if (at < 0) return null;
 
                   MutableText extras = Text.empty();
+                  StringBuilder pend = new StringBuilder();
+                  List<Style> pendSt = new ArrayList<>();
                   boolean any = false;
                   for (int i = 0; i < cps.size(); i++) {
                       if (i >= at && i < at + nameCps.length) continue;
@@ -339,10 +453,7 @@ jobs:
                       extras.append(Text.literal(new String(Character.toChars(cp))).setStyle(styles.get(i)));
                       if (!Character.isWhitespace(cp)) any = true;
                   }
-                  if (any) {
-                      out.append(Text.literal(" "));
-                      out.append(extras);
-                  }
+                  return any ? extras : null;
               }
 
               public static Text line(SantaConfig.TagElement e) { return styled(e, e.text); }
@@ -470,9 +581,10 @@ jobs:
           import java.nio.file.Path;
 
           public class SantaConfig {
-              public boolean enabled = true, bounce = false, tiersRight = true;
-              public String separator = "|";
-              public int sepColor = 0x9AA0A6;
+              public boolean enabled = true, bounce = false;
+              /** 0 = Tiers rechts, 1 = Tiers links, 2 = Tiers aus. */
+              public int tiersMode = 0;
+              public TagElement sep = new TagElement("|", FontStyle.NORMAL, Effect.SOLID, 0x9AA0A6, 0xFFFFFF);
 
               public TagElement prefix = new TagElement("SANTA", FontStyle.BOLD, Effect.RAINBOW, 0xFF3355, 0xFFD000);
               public TagElement name = new TagElement("", FontStyle.NORMAL, Effect.METALLIC, 0x7A838C, 0xFFFFFF);
@@ -502,13 +614,14 @@ jobs:
               }
 
               private void fix() {
-                  if (separator == null) separator = "";
+                  if (sep == null) sep = new TagElement("|", FontStyle.NORMAL, Effect.SOLID, 0x9AA0A6, 0xFFFFFF);
+                  if (tiersMode < 0 || tiersMode > 2) tiersMode = 0;
                   if (prefix == null) prefix = new TagElement("SANTA", FontStyle.BOLD, Effect.RAINBOW, 0xFF3355, 0xFFD000);
                   if (name == null) name = new TagElement("", FontStyle.NORMAL, Effect.METALLIC, 0x7A838C, 0xFFFFFF);
                   if (suffix == null) suffix = new TagElement("", FontStyle.NORMAL, Effect.GRADIENT, 0x32D4FF, 0xBF5AF2);
                   if (top == null) top = new TagElement("", FontStyle.NORMAL, Effect.GRADIENT, 0xFF3355, 0xFFD000);
                   if (bottom == null) bottom = new TagElement("", FontStyle.NORMAL, Effect.SOLID, 0xFFFFFF, 0xFFD000);
-                  prefix.fix(); name.fix(); suffix.fix(); top.fix(); bottom.fix();
+                  prefix.fix(); name.fix(); suffix.fix(); sep.fix(); top.fix(); bottom.fix();
               }
 
               private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -575,7 +688,7 @@ jobs:
               private static final int[] SWATCHES = {
                       0xFF3B30, 0xFF9500, 0xFFD60A, 0x9BEA2C, 0x30D158, 0x00C7BE,
                       0x32D4FF, 0x0A84FF, 0x5E5CE6, 0xBF5AF2, 0xFF2D92, 0xFFFFFF};
-              private static final String[] TAB_NAMES = {"Prefix", "Name", "Suffix", "Oben", "Unten"};
+              private static final String[] TAB_NAMES = {"Prefix", "Name", "Suffix", "Trenner", "Oben", "Unten"};
               private static final int PER_PAGE = 20;
 
               private final Screen parent;
@@ -599,7 +712,8 @@ jobs:
                       case 0: return c.prefix;
                       case 1: return c.name;
                       case 2: return c.suffix;
-                      case 3: return c.top;
+                      case 3: return c.sep;
+                      case 4: return c.top;
                       default: return c.bottom;
                   }
               }
@@ -624,8 +738,8 @@ jobs:
 
                   // Tabs
                   int y = py + 76;
-                  int tw = (inner - 4 * 3) / 5;
-                  for (int i = 0; i < 5; i++) {
+                  int tw = (inner - 5 * 3) / 6;
+                  for (int i = 0; i < 6; i++) {
                       final int idx = i;
                       btn(L + i * (tw + 3), y, tw, 16, () -> Text.literal(TAB_NAMES[idx]), () -> tab == idx, false, () -> {
                           tab = idx;
@@ -720,16 +834,15 @@ jobs:
 
                   // ---- Untere Leiste ----
                   int by = py + ph - 26;
-                  int aw = (inner - 3 * 6 - 50 - 70) / 3;
+                  int aw = (inner - 3 * 6 - 70) / 3;
                   int bx = L;
                   toggle(bx, by, aw, "Aktiv", () -> c.enabled, v -> c.enabled = v);
                   bx += aw + 6;
                   toggle(bx, by, aw, "Bounce", () -> c.bounce, v -> c.bounce = v);
                   bx += aw + 6;
-                  toggle(bx, by, aw, "Tiers rechts", () -> c.tiersRight, v -> c.tiersRight = v);
+                  btn(bx, by, aw, 18, () -> Text.literal("Tiers: " + (c.tiersMode == 0 ? "Rechts" : c.tiersMode == 1 ? "Links" : "Aus")),
+                          null, false, () -> c.tiersMode = (c.tiersMode + 1) % 3);
                   bx += aw + 6;
-                  field(bx, by, 50, 18, "Trenner", c.separator, 3, s -> c.separator = s);
-                  bx += 56;
                   btn(bx, by, 64, 18, () -> Text.literal("Fertig"), null, true, this::close);
               }
 
@@ -737,6 +850,7 @@ jobs:
                   switch (tab) {
                       case 0: return "Prefix-Text";
                       case 2: return "Suffix-Text";
+                      case 3: return "Trenner (z.B. |)";
                       default: return "Zeile";
                   }
               }
@@ -815,7 +929,8 @@ jobs:
                       tagLine(ctx, NameBuilder.line(c.top), cx, ly);
                       ly += 12;
                   }
-                  tagLine(ctx, NameBuilder.main(name, null), cx, ly);
+                  Text fake = Text.literal(name).append(Text.literal(" HT5").setStyle(Style.EMPTY.withColor(0x32D4FF)));
+                  tagLine(ctx, NameBuilder.main(name, fake), cx, ly);
                   ly += 12;
                   if (!c.bottom.text.isBlank()) tagLine(ctx, NameBuilder.line(c.bottom), cx, ly);
 
@@ -871,34 +986,72 @@ jobs:
               static final int OFF = 0x28FFFFFF;
               static final int HOVER = 0x4CFFFFFF;
 
-              private static int inset(int i, int r) {
-                  if (i >= r) return 0;
-                  double dy = r - i - 0.5;
-                  return r - (int) Math.round(Math.sqrt(r * r - dy * dy));
-              }
+              private static final java.util.Map<Integer, float[][][]> CORNERS = new java.util.HashMap<>();
 
-              /** Abgerundetes Rechteck mit Fuellung und 1px Rand (beide duerfen transparent sein). */
-              static void round(DrawContext ctx, int x, int y, int w, int h, int r, int fill, int border) {
-                  r = Math.max(1, Math.min(r, Math.min(w, h) / 2));
-                  for (int i = 0; i < r; i++) {
-                      int oi = inset(i, r);
-                      for (int side = 0; side < 2; side++) {
-                          int yy = side == 0 ? y + i : y + h - 1 - i;
-                          if (i == 0) {
-                              ctx.fill(x + oi, yy, x + w - oi, yy + 1, border);
-                          } else {
-                              int ii = Math.max(oi + 1, inset(i - 1, r - 1) + 1);
-                              ctx.fill(x + oi, yy, x + ii, yy + 1, border);
-                              ctx.fill(x + w - ii, yy, x + w - oi, yy + 1, border);
-                              ctx.fill(x + ii, yy, x + w - ii, yy + 1, fill);
+              /** [0]=Abdeckung aussen, [1]=Abdeckung innen (Radius-1), je r x r Pixel der Ecke oben links. */
+              private static float[][][] corner(int r) {
+                  return CORNERS.computeIfAbsent(r, rr -> {
+                      float[][][] t = new float[2][rr][rr];
+                      int S = 4;
+                      for (int py = 0; py < rr; py++) {
+                          for (int px = 0; px < rr; px++) {
+                              int o = 0, in = 0;
+                              for (int sy = 0; sy < S; sy++) {
+                                  for (int sx = 0; sx < S; sx++) {
+                                      double dx = rr - (px + (sx + 0.5) / S);
+                                      double dy = rr - (py + (sy + 0.5) / S);
+                                      double d = Math.sqrt(dx * dx + dy * dy);
+                                      if (d <= rr) o++;
+                                      if (d <= rr - 1) in++;
+                                  }
+                              }
+                              t[0][py][px] = o / (float) (S * S);
+                              t[1][py][px] = in / (float) (S * S);
                           }
                       }
+                      return t;
+                  });
+              }
+
+              private static int alpha(int argb, float f) {
+                  int a = Math.round(((argb >>> 24) & 255) * f);
+                  return a <= 0 ? 0 : (a << 24) | (argb & 0xFFFFFF);
+              }
+
+              private static void px(DrawContext ctx, int x, int y, int argb) {
+                  if ((argb >>> 24) != 0) ctx.fill(x, y, x + 1, y + 1, argb);
+              }
+
+              /** Abgerundetes, kantengeglättetes Rechteck mit Fuellung und 1px Rand. */
+              static void round(DrawContext ctx, int x, int y, int w, int h, int r, int fill, int border) {
+                  r = Math.max(2, Math.min(r, Math.min(w, h) / 2));
+                  boolean hasB = (border >>> 24) != 0;
+                  int bw = hasB ? 1 : 0;
+                  // Mitte + Seiten
+                  ctx.fill(x + r, y + bw, x + w - r, y + h - bw, fill);
+                  ctx.fill(x + bw, y + r, x + r, y + h - r, fill);
+                  ctx.fill(x + w - r, y + r, x + w - bw, y + h - r, fill);
+                  if (hasB) {
+                      ctx.fill(x + r, y, x + w - r, y + 1, border);
+                      ctx.fill(x + r, y + h - 1, x + w - r, y + h, border);
+                      ctx.fill(x, y + r, x + 1, y + h - r, border);
+                      ctx.fill(x + w - 1, y + r, x + w, y + h - r, border);
                   }
-                  int mh = h - 2 * r;
-                  if (mh > 0) {
-                      ctx.fill(x, y + r, x + 1, y + r + mh, border);
-                      ctx.fill(x + w - 1, y + r, x + w, y + r + mh, border);
-                      ctx.fill(x + 1, y + r, x + w - 1, y + r + mh, fill);
+                  float[][][] c = corner(r);
+                  for (int j = 0; j < r; j++) {
+                      for (int i = 0; i < r; i++) {
+                          float o = c[0][j][i], in = hasB ? c[1][j][i] : c[0][j][i];
+                          int bc = hasB ? alpha(border, Math.max(0, o - in)) : 0;
+                          int fc = alpha(fill, in);
+                          int[] xs = {x + i, x + w - 1 - i};
+                          int[] ys = {y + j, y + h - 1 - j};
+                          for (int xx : xs) {
+                              for (int yy : ys) {
+                                  px(ctx, xx, yy, bc);
+                                  px(ctx, xx, yy, fc);
+                              }
+                          }
+                      }
                   }
               }
 
@@ -1075,7 +1228,11 @@ jobs:
                   SantaConfig c = SantaConfig.get();
                   if (!c.enabled) return;
                   Text oldName = state.displayName;
+                  Text oldScore = state.playerName;
                   Vec3d oldPos = state.nameLabelPos;
+                  double bottomOff = oldScore != null ? -0.54 : -0.27;
+                  // Vanilla zeichnet den Score (z.B. Geld) mit; bei unseren Zusatzzeilen weglassen, sonst doppelt.
+                  state.playerName = null;
                   santa$busy = true;
                   try {
                       if (!c.top.text.isBlank()) {
@@ -1085,17 +1242,20 @@ jobs:
                       }
                       if (!c.bottom.text.isBlank()) {
                           state.displayName = NameBuilder.line(c.bottom);
-                          state.nameLabelPos = oldPos.add(0, -0.27, 0);
+                          state.nameLabelPos = oldPos.add(0, bottomOff, 0);
                           this.renderLabelIfPresent(state, matrices, queue, camera);
                       }
                   } finally {
                       state.displayName = oldName;
+                      state.playerName = oldScore;
                       state.nameLabelPos = oldPos;
                       santa$busy = false;
                   }
               }
           }
           SANTA_EOF
+          mkdir -p "$(dirname src/main/resources/assets/santanametext/icon.png)"
+          echo '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' | base64 -d > src/main/resources/assets/santanametext/icon.png
           mkdir -p "$(dirname src/main/resources/assets/santanametext/lang/en_us.json)"
           cat > src/main/resources/assets/santanametext/lang/en_us.json <<'SANTA_EOF'
           { "key.santanametext.menu": "Open Santa Name Text menu" }
@@ -1107,8 +1267,10 @@ jobs:
             "id": "santanametext",
             "version": "1.0.0",
             "name": "Santa Name Text",
-            "description": "Eigener Nametag: Logos, Prefix, Zusatzzeilen und Texteffekte.",
+            "description": "Client-side custom nametag: prefix, suffix, extra lines above/below, text effects, 40 font styles, colour picker and a glass menu. Tier mod compatible.",
             "authors": ["Santa"],
+            "license": "MIT",
+            "icon": "assets/santanametext/icon.png",
             "environment": "client",
             "entrypoints": { "client": ["de.santa.santanametext.SantaNameText"] },
             "mixins": ["santanametext.mixins.json"],
@@ -1125,6 +1287,14 @@ jobs:
             "injectors": { "defaultRequire": 1 }
           }
           SANTA_EOF
+      - name: Quellcode ins Repo schreiben (Open Source)
+        continue-on-error: true
+        run: |
+          cp -r work/src work/build.gradle work/gradle.properties work/settings.gradle work/LICENSE work/README.md work/MODRINTH.md work/.gitignore ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src build.gradle gradle.properties settings.gradle LICENSE README.md MODRINTH.md .gitignore
+          git diff --cached --quiet || (git commit -m "Update sources" && git push)
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
