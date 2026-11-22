@@ -1,0 +1,6 @@
+build/
+.gradle/
+work/
+*.class
+.idea/
+run/

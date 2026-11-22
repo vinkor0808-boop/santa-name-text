@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "santanametext",
+  "version": "1.0.0",
+  "name": "Santa Name Text",
+  "description": "Client-side custom nametag: prefix, suffix, extra lines above/below, text effects, 40 font styles, colour picker and a glass menu. Tier mod compatible.",
+  "authors": ["Santa"],
+  "license": "MIT",
+  "icon": "assets/santanametext/icon.png",
+  "environment": "client",
+  "entrypoints": { "client": ["de.santa.santanametext.SantaNameText"] },
+  "mixins": ["santanametext.mixins.json"],
+  "depends": { "fabricloader": ">=0.16.0", "minecraft": "~1.21.11", "java": ">=21", "fabric-api": "*" }
+}
