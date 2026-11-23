@@ -1241,14 +1241,17 @@ jobs:
                   Text oldName = state.displayName;
                   Text oldScore = state.playerName;
                   Vec3d oldPos = state.nameLabelPos;
-                  double bottomOff = oldScore != null ? -0.54 : -0.27;
+                  // Vanilla schiebt den Namen um 9*1.15*0.025 nach oben, wenn ein Score (Geld) darunter steht.
+                  double scoreShift = oldScore != null ? 0.2588 : 0.0;
+                  double topOff = 0.27 + scoreShift;
+                  double bottomOff = -0.27;
                   // Vanilla zeichnet den Score (z.B. Geld) mit; bei unseren Zusatzzeilen weglassen, sonst doppelt.
                   state.playerName = null;
                   santa$busy = true;
                   try {
                       if (!c.top.text.isBlank()) {
                           state.displayName = NameBuilder.line(c.top);
-                          state.nameLabelPos = oldPos.add(0, 0.27, 0);
+                          state.nameLabelPos = oldPos.add(0, topOff, 0);
                           this.renderLabelIfPresent(state, matrices, queue, camera);
                       }
                       if (!c.bottom.text.isBlank()) {
