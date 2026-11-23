@@ -19,7 +19,7 @@ Santa Name Text lets you design your own nametag, fully client-side.
 - 40 font styles, bold / italic / underline / strikethrough
 - HSV colour picker, hex input, swatches, live preview
 - Tier mods: show the tier left, right or hide it
-- Rounded glass menu, open with Right Shift
+- Rounded glass menu, open with K (rebindable)
 
 Your own tag is only visible in third person (F5). Other players do not see it.
 

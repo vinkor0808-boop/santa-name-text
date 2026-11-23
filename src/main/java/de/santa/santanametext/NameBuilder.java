@@ -79,11 +79,22 @@ public final class NameBuilder {
         for (int i = 0; i < cps.size(); i++) {
             if (i >= at && i < at + nameCps.length) continue;
             int cp = cps.get(i);
+            if (skip(cp, styles.get(i))) continue;
             if (!any && Character.isWhitespace(cp)) continue;
             extras.append(Text.literal(new String(Character.toChars(cp))).setStyle(styles.get(i)));
             if (!Character.isWhitespace(cp)) any = true;
         }
         return any ? extras : null;
+    }
+
+    /** Server-Icons, Spezialschriften und Abstands-Zeichen (Negativ-Space) weglassen - sie verschieben sonst den Text. */
+    private static boolean skip(int cp, Style style) {
+        if (style.getFont() != null) return true;
+        if ((cp >= 0xE000 && cp <= 0xF8FF) || cp >= 0xF0000) return true;
+        int t = Character.getType(cp);
+        return t == Character.FORMAT || t == Character.CONTROL || t == Character.UNASSIGNED
+                || t == Character.PRIVATE_USE || t == Character.SURROGATE
+                || (cp >= 0x200B && cp <= 0x200F) || cp == 0x00AD;
     }
 
     public static Text line(SantaConfig.TagElement e) { return styled(e, e.text); }

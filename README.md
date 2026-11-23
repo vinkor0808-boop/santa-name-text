@@ -10,13 +10,13 @@ Open source, MIT license.
 - 40 font styles (Unicode styles + Minecraft fonts), bold / italic / underline / strikethrough
 - HSV colour picker, hex input, colour swatches, always-visible live preview
 - Tier mods: tier can be shown **left**, **right** or hidden
-- Rounded glass menu - open with **Right Shift** (rebindable in Controls)
+- Rounded glass menu - open with **K** (rebindable in Controls)
 
 Note: Minecraft hides your own nametag - you see it in third person (F5). Other players do not see it; it is purely client-side.
 
 ## Deutsch
 Eigener Nametag mit Prefix, Suffix, Trenner, Zeilen ueber/unter dem Namen, Effekten, 40 Schriften und Farbwaehler.
-Menue: rechte Shift-Taste. Den eigenen Tag siehst du nur in der Third-Person-Ansicht (F5), andere sehen ihn nicht.
+Menue: Taste K (aenderbar unter Steuerung). Den eigenen Tag siehst du nur in der Third-Person-Ansicht (F5), andere sehen ihn nicht.
 
 ## Build
 ```

@@ -12,7 +12,7 @@ public class SantaNameText implements ClientModInitializer {
     public void onInitializeClient() {
         SantaConfig.get();
         KeyBinding key = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.santanametext.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, KeyBinding.Category.MISC));
+                "key.santanametext.open", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, KeyBinding.Category.MISC));
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             while (key.wasPressed()) {
                 if (mc.currentScreen == null) mc.setScreen(new SantaScreen(null));
