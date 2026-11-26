@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "windfwm",
+  "version": "${version}",
+  "name": "WindFWM",
+  "description": "Moderne Client-Mod fuer WindSMP: Dashboard, Money Tracker, Money Stats, Shop-, Spieler-, Waypoint- und Chat-Manager. Funktioniert auf jedem Server, ist aber auf WindSMP abgestimmt.",
+  "authors": ["WindFWM"],
+  "license": "MIT",
+  "icon": "assets/windfwm/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["de.windfwm.WindFwm"]
+  },
+  "depends": {
+    "fabricloader": ">=0.17.3",
+    "fabric-api": "*",
+    "minecraft": "~1.21.11",
+    "java": ">=21"
+  }
+}
