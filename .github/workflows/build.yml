@@ -15,11 +15,11 @@ jobs:
       - name: Code auschecken
         uses: actions/checkout@v5
 
-      - name: Java 21 einrichten
+      - name: Java 25 einrichten (Gradle/Loom; Mod wird fuer Java 21 kompiliert)
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
 
       - name: Gradle einrichten
         uses: gradle/actions/setup-gradle@v5
