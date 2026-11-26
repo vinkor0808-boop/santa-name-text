@@ -17,6 +17,8 @@ import java.util.Set;
 public final class GameContext {
     private static Set<String> onlineCache = new HashSet<>();
     private static long onlineCacheTime;
+    private static long titleCheckTime;
+    private static boolean windTitle;
 
     private GameContext() {}
 
@@ -43,7 +45,23 @@ public final class GameContext {
 
     /** WindSMP wird an der Serveradresse (z. B. play.windsmp.com) oder am Sidebar-Titel erkannt. */
     public static boolean isWindSmp() {
-        return serverKey().contains("windsmp") || (inWorld() && de.windfwm.money.ScoreboardReader.windTitle);
+        if (serverKey().contains("windsmp")) return true;
+        long now = System.currentTimeMillis();
+        if (now - titleCheckTime > 2000) {
+            titleCheckTime = now;
+            windTitle = false;
+            try {
+                MinecraftClient mc = mc();
+                if (mc.world != null) {
+                    net.minecraft.scoreboard.ScoreboardObjective o = mc.world.getScoreboard()
+                            .getObjectiveForSlot(net.minecraft.scoreboard.ScoreboardDisplaySlot.SIDEBAR);
+                    windTitle = o != null && o.getDisplayName().getString().toLowerCase(Locale.ROOT).contains("windsmp");
+                }
+            } catch (Exception ignored) {
+                // Scoreboard kann beim Weltwechsel kurz ungültig sein
+            }
+        }
+        return windTitle;
     }
 
     public static String serverLabel() {
