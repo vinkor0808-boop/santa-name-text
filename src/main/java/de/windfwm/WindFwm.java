@@ -9,6 +9,8 @@ import de.windfwm.feature.OrderTracker;
 import de.windfwm.ui.Hud;
 import de.windfwm.ui.WindScreen;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -23,12 +25,14 @@ import java.util.List;
 /** WindFWM – Add-on für FWM mit zusätzlichen WindSMP-Modulen (nur Client). */
 public final class WindFwm implements ClientModInitializer {
     public static final String MOD_ID = "windfwm";
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "2.0.1";
     public static final Logger LOG = LoggerFactory.getLogger("WindFWM");
 
     private static DataManager data;
     private static AutoMessages auto;
     private static OrderTracker orders;
+    /** Menü im nächsten Tick öffnen (nach dem Schließen des Chats). */
+    private static boolean openRequested;
 
     public static DataManager data() { return data; }
     public static WindConfig cfg() { return data.cfg(); }
@@ -44,6 +48,12 @@ public final class WindFwm implements ClientModInitializer {
 
         Keybinds.register();
         orders.register();
+        // Fallback, falls keine Taste belegt ist: /windfwm öffnet das Menü
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
+                dispatcher.register(ClientCommandManager.literal("windfwm").executes(ctx -> {
+                    openRequested = true;
+                    return 1;
+                })));
 
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
@@ -65,6 +75,10 @@ public final class WindFwm implements ClientModInitializer {
             if (client.player != null) {
                 while (Keybinds.openMenu.wasPressed()) {
                     if (client.currentScreen == null) client.setScreen(new WindScreen());
+                }
+                if (openRequested && client.currentScreen == null) {
+                    openRequested = false;
+                    client.setScreen(new WindScreen());
                 }
                 List<WindConfig.QuickMessage> quick = cfg().quick;
                 for (int i = 0; i < Keybinds.QUICK_KEYS; i++) {
