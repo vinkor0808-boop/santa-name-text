@@ -1,0 +1,4 @@
+/home/runner/work/santa-name-text/santa-name-text/.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-2ae02fda0f/1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.6-v2/minecraft-merged-2ae02fda0f-1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.6-v2-sources.jar
+/home/runner/work/santa-name-text/santa-name-text/.gradle/loom-cache/remapped_mods/remapped/net/fabricmc/fabric-api/fabric-rendering-v1-16c8840d/16.2.10+0290ad933e/fabric-rendering-v1-16c8840d-16.2.10+0290ad933e.jar
+/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-rendering-v1/16.2.10+0290ad933e/2485bb9579abaada1f556258b823dd9fbb1e3b05/fabric-rendering-v1-16.2.10+0290ad933e.jar
+/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-rendering-v1/16.2.9+7edacff13e/e8828ffc0fdcb5c8b2fdde702955bbb33c11ee91/fabric-rendering-v1-16.2.9+7edacff13e.jar
