@@ -30,6 +30,7 @@ public final class OreTracker {
     private static String lastSettings = "";
     private static int tick;
     private static boolean initStarted;
+    private static final OreSim.StateLookup UNKNOWN = (x, y, z) -> null;
 
     public static List<Visible> visible() { return visible; }
 
@@ -85,11 +86,11 @@ public final class OreTracker {
                     int cx = center.x + dx, cz = center.z + dz;
                     long key = ChunkPos.toLong(cx, cz);
                     Entry e = CACHE.get(key);
-                    boolean loaded = areaLoaded(world, cx, cz);
-                    if (e != null && (e.complete || !loaded)) continue;
-                    if (e == null) e = new Entry();
-                    e.ores = OreSim.simulateChunk(cfg.seed, dim, cx, cz, cfg.diamonds, cfg.debris, lookup);
-                    e.complete = loaded;
+                    if (e != null) continue;
+                    e = new Entry();
+                    // Reine Seed-Simulation: unabhaengig vom Client-Zustand, damit sich nichts beim Naeherkommen verschiebt
+                    e.ores = OreSim.simulateChunk(cfg.seed, dim, cx, cz, cfg.diamonds, cfg.debris, UNKNOWN);
+                    e.complete = true;
                     CACHE.put(key, e);
                     budget--;
                 }
@@ -115,10 +116,10 @@ public final class OreTracker {
                 if (ddx * ddx + ddz * ddz > r2) continue;
                 BlockState state = lookup.get(p.getX(), p.getY(), p.getZ());
                 boolean confirmed = OreSim.isOreBlock(ore.kind(), state);
-                if (cfg.filter && state != null && !confirmed) {
-                    if (!OreSim.isTarget(ore.kind(), state)) continue;
-                    if (ore.airSensitive() && OreSim.exposedToAir(p.getX(), p.getY(), p.getZ(), lookup)) continue;
-                }
+                // Nur ausblenden, wenn der Block sichtbar weg ist (abgebaut: Luft/Wasser/Lava).
+                // Andere Bloecke (z. B. Anti-Xray-Fake-Erze) blenden nichts mehr aus.
+                if (cfg.filter && state != null && !confirmed
+                        && (state.isAir() || !state.getFluidState().isEmpty())) continue;
                 list.add(new Visible(p, ore.kind(), confirmed));
             }
         }
