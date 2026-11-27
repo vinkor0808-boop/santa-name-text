@@ -72,12 +72,6 @@ public class SantaOreSim implements ClientModInitializer {
                             feedback(c, "Ancient Debris " + onOff(OreConfig.INSTANCE.debris));
                             return 1;
                         }))
-                        .then(ClientCommandManager.literal("filter").executes(c -> {
-                            OreConfig.INSTANCE.filter = !OreConfig.INSTANCE.filter;
-                            OreConfig.save();
-                            feedback(c, "Luft-Filter " + onOff(OreConfig.INSTANCE.filter));
-                            return 1;
-                        }))
                         .then(ClientCommandManager.literal("reload").executes(c -> {
                             OreTracker.reset();
                             feedback(c, "Neu berechnet.");
@@ -99,7 +93,7 @@ public class SantaOreSim implements ClientModInitializer {
         if (OreSim.error() != null) feedback(c, "§cFehler: " + OreSim.error());
         else if (!OreSim.isReady()) feedback(c, "Wird initialisiert...");
         else feedback(c, "§7" + OreTracker.visible().size() + " Boxen, " + OreTracker.cachedChunks() + " Chunks | " + OreSim.indexInfo());
-        feedback(c, "§7/oresim on|off|seed <seed>|radius <16-256>|diamonds|debris|filter|reload");
+        feedback(c, "§7/oresim on|off|seed <seed>|radius <16-256>|diamonds|debris|reload");
         return 1;
     }
 

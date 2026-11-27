@@ -116,16 +116,13 @@ public final class OreTracker {
                 if (ddx * ddx + ddz * ddz > r2) continue;
                 BlockState state = lookup.get(p.getX(), p.getY(), p.getZ());
                 boolean confirmed = OreSim.isOreBlock(ore.kind(), state);
-                // Nur ausblenden, wenn der Block sichtbar weg ist (abgebaut: Luft/Wasser/Lava).
-                // Andere Bloecke (z. B. Anti-Xray-Fake-Erze) blenden nichts mehr aus.
-                if (cfg.filter && state != null && !confirmed
-                        && (state.isAir() || !state.getFluidState().isEmpty())) continue;
+                // Rein nach Seed: es wird nie etwas ausgeblendet.
                 list.add(new Visible(p, ore.kind(), confirmed));
             }
         }
         double px = client.player.getX(), py = client.player.getY(), pz = client.player.getZ();
         list.sort(Comparator.comparingDouble(v -> v.pos().getSquaredDistance(px, py, pz)));
-        if (list.size() > 2500) list = new ArrayList<>(list.subList(0, 2500));
+        if (list.size() > 8000) list = new ArrayList<>(list.subList(0, 8000));
         visible = List.copyOf(list);
     }
 

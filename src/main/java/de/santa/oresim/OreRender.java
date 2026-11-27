@@ -19,7 +19,7 @@ public final class OreRender {
             int stroke = dia ? DIAMOND : DEBRIS;
             DrawStyle style = v.confirmed()
                     ? DrawStyle.filledAndStroked(stroke, 3.0F, dia ? DIAMOND_FILL : DEBRIS_FILL)
-                    : DrawStyle.stroked(stroke, 2.0F);
+                    : DrawStyle.stroked(stroke, 2.5F);
             GizmoDrawing.box(v.pos(), style).ignoreOcclusion();
         }
     }
