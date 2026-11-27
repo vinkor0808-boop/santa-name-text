@@ -2,6 +2,10 @@ name: Build Santa OreSim
 
 on:
   push:
+    tags:
+      - 'oresim-v*'
+    branches:
+      - '**'
   pull_request:
   workflow_dispatch:
 
@@ -45,11 +49,20 @@ jobs:
             build/libs/*.jar
             !build/libs/*-sources.jar
 
-      - name: Release veröffentlichen
-        if: github.event_name == 'push'
+      - name: Test-Build veröffentlichen
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="oresim-build-${GITHUB_RUN_NUMBER}"
           JAR=$(ls build/libs/*.jar | grep -v sources | head -1)
           gh release create "$TAG" "$JAR" --target "$GITHUB_SHA" --title "Santa OreSim Build ${GITHUB_RUN_NUMBER}" --notes "Automatischer Build" --prerelease
+
+      - name: Offizielles Release veröffentlichen
+        if: startsWith(github.ref, 'refs/tags/oresim-v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          JAR=$(ls build/libs/*.jar | grep -v sources | head -1)
+          gh release create "$TAG" "$JAR" --verify-tag --title "Santa OreSim ${TAG#oresim-v}" --notes-file CHANGELOG.md

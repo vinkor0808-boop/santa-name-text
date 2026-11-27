@@ -3,13 +3,18 @@
   "id": "santaoresim",
   "version": "${version}",
   "name": "Santa OreSim",
-  "description": "Seed-basiertes Block-ESP fuer Diamanten und Ancient Debris (Add-on zum Santa Client).",
+  "description": "Seed-based ore finder for diamonds and ancient debris. Calculates ore positions from the world seed and highlights them. Settings menu via Mod Menu, the O key or /oresim menu.",
   "authors": ["Santa"],
+  "contact": {
+    "sources": "https://github.com/vinkor0808-boop/santa-name-text/tree/oresim",
+    "issues": "https://github.com/vinkor0808-boop/santa-name-text/issues"
+  },
   "license": "MIT",
   "icon": "assets/santaoresim/icon.png",
   "environment": "client",
   "entrypoints": {
-    "client": ["de.santa.oresim.SantaOreSim"]
+    "client": ["de.santa.oresim.SantaOreSim"],
+    "modmenu": ["de.santa.oresim.ModMenuIntegration"]
   },
   "mixins": ["santaoresim.mixins.json"],
   "depends": {
@@ -17,5 +22,8 @@
     "fabric-api": "*",
     "minecraft": "~1.21.11",
     "java": ">=21"
+  },
+  "suggests": {
+    "modmenu": "*"
   }
 }

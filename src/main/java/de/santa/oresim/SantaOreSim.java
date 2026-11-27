@@ -22,6 +22,8 @@ public class SantaOreSim implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("santa-oresim");
     private static final String P = "§b[OreSim]§r ";
     private static KeyBinding toggleKey;
+    private static KeyBinding menuKey;
+    private static boolean openMenu;
 
     @Override
     public void onInitializeClient() {
@@ -29,6 +31,8 @@ public class SantaOreSim implements ClientModInitializer {
         KeyBinding.Category category = KeyBinding.Category.create(Identifier.of("santaoresim", "main"));
         toggleKey = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding("key.santaoresim.toggle", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category));
+        menuKey = KeyBindingHelper.registerKeyBinding(
+                new KeyBinding("key.santaoresim.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_O, category));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleKey.wasPressed()) {
@@ -36,12 +40,22 @@ public class SantaOreSim implements ClientModInitializer {
                 OreConfig.save();
                 msg(client, "ESP " + (OreConfig.INSTANCE.enabled ? "§aAN" : "§cAUS"));
             }
+            while (menuKey.wasPressed()) openMenu = true;
+            if (openMenu && client.currentScreen == null) {
+                openMenu = false;
+                client.setScreen(new OreScreen(null));
+            }
             OreTracker.tick(client);
         });
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
                 ClientCommandManager.literal("oresim")
                         .executes(SantaOreSim::info)
+                        .then(ClientCommandManager.literal("menu").executes(c -> {
+                            // Erst im naechsten Tick oeffnen, sonst schliesst der Chat das Menue sofort wieder
+                            openMenu = true;
+                            return 1;
+                        }))
                         .then(ClientCommandManager.literal("on").executes(c -> setEnabled(c, true)))
                         .then(ClientCommandManager.literal("off").executes(c -> setEnabled(c, false)))
                         .then(ClientCommandManager.literal("seed")
@@ -93,7 +107,7 @@ public class SantaOreSim implements ClientModInitializer {
         if (OreSim.error() != null) feedback(c, "§cFehler: " + OreSim.error());
         else if (!OreSim.isReady()) feedback(c, "Wird initialisiert...");
         else feedback(c, "§7" + OreTracker.visible().size() + " Boxen, " + OreTracker.cachedChunks() + " Chunks | " + OreSim.indexInfo());
-        feedback(c, "§7/oresim on|off|seed <seed>|radius <16-256>|diamonds|debris|reload");
+        feedback(c, "§7/oresim menu|on|off|seed <seed>|radius <16-256>|diamonds|debris|reload");
         return 1;
     }
 
