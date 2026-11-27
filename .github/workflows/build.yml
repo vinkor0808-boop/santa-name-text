@@ -1,4 +1,4 @@
-name: Build WindFWM
+name: Build Santa OreSim
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
       - name: JAR hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: WindFWM
+          name: Santa-OreSim
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar
@@ -50,6 +50,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="windfwm-build-${GITHUB_RUN_NUMBER}"
+          TAG="oresim-build-${GITHUB_RUN_NUMBER}"
           JAR=$(ls build/libs/*.jar | grep -v sources | head -1)
-          gh release create "$TAG" "$JAR" --target "$GITHUB_SHA" --title "WindFWM Build ${GITHUB_RUN_NUMBER}" --notes "Automatischer Build" --prerelease
+          gh release create "$TAG" "$JAR" --target "$GITHUB_SHA" --title "Santa OreSim Build ${GITHUB_RUN_NUMBER}" --notes "Automatischer Build" --prerelease

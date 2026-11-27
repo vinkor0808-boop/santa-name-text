@@ -1,27 +1,21 @@
 {
   "schemaVersion": 1,
-  "id": "windfwm",
+  "id": "santaoresim",
   "version": "${version}",
-  "name": "WindFWM",
-  "description": "Add-on für FWM auf WindSMP: Schnellnachrichten, automatische Chatnachrichten mit Intervall und Order-Tracker. Läuft neben FWM, ohne FWM zu verändern.",
-  "authors": [
-    "WindFWM"
-  ],
+  "name": "Santa OreSim",
+  "description": "Seed-basiertes Block-ESP fuer Diamanten und Ancient Debris (Add-on zum Santa Client).",
+  "authors": ["Santa"],
   "license": "MIT",
-  "icon": "assets/windfwm/icon.png",
+  "icon": "assets/santaoresim/icon.png",
   "environment": "client",
   "entrypoints": {
-    "client": [
-      "de.windfwm.WindFwm"
-    ]
+    "client": ["de.santa.oresim.SantaOreSim"]
   },
+  "mixins": ["santaoresim.mixins.json"],
   "depends": {
     "fabricloader": ">=0.17.3",
     "fabric-api": "*",
     "minecraft": "~1.21.11",
     "java": ">=21"
-  },
-  "suggests": {
-    "fwm": "*"
   }
 }
