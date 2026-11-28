@@ -6,6 +6,7 @@ Client-side Fabric mod for **Minecraft 1.21.11** that calculates where diamonds 
 - Seed-based ore positions for **diamonds** (cyan) and **ancient debris** (orange)
 - Settings menu: key **O**, command `/oresim menu`, or the gear button in [Mod Menu](https://modrinth.com/mod/modmenu)
 - Seed input (number or text seed), radius 16–256 blocks, separate toggles per ore
+- Custom colours per ore, fill opacity, line width, see-through-walls and rainbow mode with live preview
 - Commands: `/oresim`, `/oresim on|off`, `/oresim seed <seed>`, `/oresim radius <16-256>`, `/oresim diamonds`, `/oresim debris`, `/oresim reload`
 
 ## Requirements

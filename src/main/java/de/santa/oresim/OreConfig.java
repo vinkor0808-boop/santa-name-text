@@ -20,6 +20,17 @@ public final class OreConfig {
     /** Boxen ausblenden, wenn an der Stelle sichtbar Luft/anderer Block ist. */
     public boolean filter = true;
 
+    // Aussehen
+    public int diamondColor = 0x33E8FF;
+    public int debrisColor = 0xFF7A1F;
+    /** Deckkraft der Fuellung in Prozent (0-100). */
+    public int fillOpacity = 19;
+    /** Linienstaerke in Zehntel-Pixeln (10-60). */
+    public int lineWidth = 30;
+    public boolean fill = true;
+    public boolean throughWalls = true;
+    public boolean rainbow = false;
+
     public static OreConfig INSTANCE = new OreConfig();
 
     public static void load() {
@@ -32,6 +43,8 @@ public final class OreConfig {
             SantaOreSim.LOGGER.warn("Config konnte nicht geladen werden", e);
         }
         INSTANCE.radius = Math.max(16, Math.min(256, INSTANCE.radius));
+        INSTANCE.fillOpacity = Math.max(0, Math.min(100, INSTANCE.fillOpacity));
+        INSTANCE.lineWidth = Math.max(10, Math.min(60, INSTANCE.lineWidth));
     }
 
     public static void save() {
